@@ -272,7 +272,7 @@ const f2 = n => (Math.round(n*100)/100).toFixed(2);
 const SUPABASE_URL="https://kcouuizatvepsebpfxpn.supabase.co";
 const SUPABASE_KEY="sb_publishable_hYSJSYIQg-MUsdWhEpdzVg_vFsgYm5Q";
 // Google Apps Script web app that sends the emails (see apps-script/Code.gs). Paste its /exec URL here.
-const MAIL_URL="";
+const MAIL_URL="https://script.google.com/a/macros/aartycarriers.com/s/AKfycbyO1SB7ORruvGgARsxLKsZDMOhOM9u8oO5pOUQv8sgYQegkxP25mFignewuKMsKLfWceQ/exec";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const blankTrip=(p={})=>({date:"",veh:p.veh||"",from:p.from||"",to:p.to||"",lr:"",retFrom:p.retFrom||"",retTo:p.retTo||"",retLr:"",retAuto:p.retAuto,pay:0,extra:0,extraRem:"",adv:0,rem:"",startKm:p.closeKm||0,closeKm:0,used:0,km:0});
 // Shared data (drivers, vehicles, settlements, settings) lives in Supabase.
