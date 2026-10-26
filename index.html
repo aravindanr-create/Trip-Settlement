@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trip Settlement Sheet</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -110,7 +115,13 @@ h2{font-family:var(--display);font-size:1.3rem;margin:0 0 8px;letter-spacing:.02
 .dtbl tfoot td:first-child{background:var(--accent-soft)}
 .tag.on{background:var(--good-soft);color:var(--good)}.tag.off{background:var(--bad-soft);color:var(--bad)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+[hidden]{display:none!important}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 </style>
+</head>
+<body>
 
 <header class="topbar"><div class="in"><h1>Trip Settlement</h1><nav class="pages" id="appNav" hidden><button id="pgSettle" aria-current="page">New trips</button><button id="pgHistory">Previous trips</button><button id="pgDash">Dashboard</button><button id="pgDrivers">Drivers &amp; vehicles</button><button id="signOut" title="Sign out">Sign out</button></nav></div></header>
 
@@ -654,3 +665,6 @@ $("loginForm").addEventListener("submit",async e=>{e.preventDefault();$("lErr").
 $("signOut").onclick=async()=>{await sb.auth.signOut();showApp(false);toast("Signed out")};
 sb.auth.getSession().then(({data})=>{if(data.session)boot();else showApp(false)});
 </script>
+
+</body>
+</html>
