@@ -114,6 +114,14 @@ h2{font-family:var(--display);font-size:1.3rem;margin:0 0 8px;letter-spacing:.02
 .dtbl tfoot td{background:var(--accent-soft);font-weight:700;border-bottom:0}
 .dtbl tfoot td:first-child{background:var(--accent-soft)}
 .retlbl{grid-column:1/-1;font:600 .72rem var(--body);letter-spacing:.07em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-soft);border-radius:6px;padding:5px 8px;margin-top:4px}
+.hbars{display:flex;flex-direction:column;gap:8px}
+.hbar{display:grid;grid-template-columns:96px minmax(0,1fr) 64px;align-items:center;gap:10px;font-size:.85rem}
+.hbar .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar .tr{position:relative;height:20px;background:var(--bg);border-radius:0 4px 4px 0}
+.hbar .fl{height:100%;background:#e07b24;border-radius:0 4px 4px 0;min-width:2px}
+.hbar .avgm{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--ink);opacity:.55}
+.hbar .vl{font-family:var(--mono);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.hbar.none .vl{font-family:var(--body);font-weight:400;color:var(--muted)}
 .tag.on{background:var(--good-soft);color:var(--good)}.tag.off{background:var(--bad-soft);color:var(--bad)}
 /* ===== Console shell (sidebar + page header + table lists) ===== */
 :root{--side:#1e2227;--side-2:#272c33;--side-ink:#c5ccd6;--side-dim:#8b95a3;--link:#2563c9;--page:#f3f5f8}
@@ -386,6 +394,11 @@ img{max-width:100%}
     <h2 style="margin-bottom:2px">Avg mileage by vehicle</h2>
     <div class="route" style="margin-bottom:8px">km per litre of diesel used. Dashed line = standard mileage. Tap a bar for details.</div>
     <div class="tblwrap" style="border:0"><div id="milChart"></div></div>
+  </section>
+  <section class="card">
+    <h2 style="margin-bottom:2px">Avg diesel per trip by vehicle</h2>
+    <div class="route" style="margin-bottom:10px" id="dslSub">Litres of diesel used per trip, highest first. Hover a bar for details.</div>
+    <div id="dslChart" class="hbars"></div>
   </section>
   <section class="card">
     <h2>Vehicle-wise</h2>
@@ -692,11 +705,24 @@ function renderMilChart(all){
   if(S.stdMil>0){const ys=y(S.stdMil);o+=`<line x1="${ml}" x2="${W-mr}" y1="${ys}" y2="${ys}" stroke="#b4322a" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-mr}" y="${ys-6}" text-anchor="end" font-size="11" font-weight="600" fill="#b4322a">Std ${(+S.stdMil).toFixed(1)} km/L</text>`}
   $("milChart").innerHTML=o+`</svg>`;
 }
+function renderDieselChart(all){
+  const g=new Map(group(all,"veh").map(r=>[r.name,r]));
+  const names=[...S.vehicles,...[...g.keys()].filter(k=>!S.vehicles.includes(k)&&k!=="(not set)")];
+  const withData=names.filter(n=>g.get(n)?.trips).map(n=>g.get(n)).sort((a,b)=>b.avgD-a.avgD);
+  const without=names.filter(n=>!g.get(n)?.trips);
+  if(!names.length){$("dslChart").innerHTML=`<div class="route">No vehicles yet.</div>`;return}
+  const max=Math.max(1,...withData.map(r=>r.avgD));
+  const T=withData.reduce((a,r)=>({t:a.t+r.trips,u:a.u+r.used}),{t:0,u:0}),fleet=T.t?T.u/T.t:0;
+  $("dslSub").innerHTML=`Litres of diesel used per trip, highest first.${fleet?` Dashed line = fleet average <b>${fleet.toFixed(2)} L</b>.`:""} Hover a bar for details.`;
+  $("dslChart").innerHTML=withData.map(r=>`<div class="hbar" title="${esc(r.name)}: ${r.avgD.toFixed(2)} L per trip · ${r.trips} trip${r.trips===1?"":"s"} · ${f2(r.used)} L used · ${Math.round(r.km).toLocaleString("en-IN")} km">
+      <div class="nm">${esc(r.name)}</div><div class="tr"><div class="fl" style="width:${(r.avgD/max*100).toFixed(1)}%"></div>${fleet?`<div class="avgm" style="left:${(fleet/max*100).toFixed(1)}%"></div>`:""}</div><div class="vl">${r.avgD.toFixed(2)}</div></div>`).join("")
+    +without.map(n=>`<div class="hbar none"><div class="nm">${esc(n)}</div><div class="tr"></div><div class="vl">No trips</div></div>`).join("");
+}
 function renderDash(){
   const all=dashTrips();
   const T={trips:all.length,km:0,used:0};all.forEach(t=>{T.km+=t.km||0;T.used+=t.used||0});
   $("dbTrips").textContent=T.trips;$("dbKm").textContent=fmtM.km(T.km)+" km";$("dbAvgD").textContent=T.trips?f2(T.used/T.trips)+" L":"-";$("dbMil").textContent=T.used>0?(T.km/T.used).toFixed(2)+" km/L":"-";
-  renderMilChart(all);
+  renderMilChart(all);renderDieselChart(all);
   table("vTbl",group(all,"veh"),vSort,x=>vSort=x,"Vehicle",false);
   const ds=$("dbDStatus").value;
   const dr=group(all,"driver").map(r=>({...r,status:dStatus(r.name)})).filter(r=>!ds||r.status===ds);
