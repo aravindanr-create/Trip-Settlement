@@ -124,7 +124,7 @@ img{max-width:100%}
 </head>
 <body>
 
-<header class="topbar"><div class="in"><h1>Trip Settlement</h1><nav class="pages" id="appNav" hidden><button id="pgSettle" aria-current="page">New trips</button><button id="pgHistory">Previous trips</button><button id="pgDash">Dashboard</button><button id="pgDrivers">Drivers &amp; vehicles</button><button id="signOut" title="Sign out">Sign out</button></nav></div></header>
+<header class="topbar"><div class="in"><h1>Trip Settlement</h1><nav class="pages" id="appNav" hidden><button id="pgDash" aria-current="page">Dashboard</button><button id="pgSettle">New trips</button><button id="pgHistory">Previous trips</button><button id="pgDrivers">Drivers &amp; vehicles</button><button id="signOut" title="Sign out">Sign out</button></nav></div></header>
 
 <main class="wrap" id="pageLogin">
   <section class="card" style="max-width:420px;margin:32px auto;width:100%">
@@ -686,7 +686,7 @@ async function boot(){
   $("loading").hidden=false;
   try{await loadAll()}catch(e){$("loading").hidden=true;return}
   $("loading").hidden=true;showApp(true);
-  head();$("stdMil").value=S.stdMil;renderTrips();renderSum();renderRecips();renderEditBanner();page("settle");
+  head();$("stdMil").value=S.stdMil;renderTrips();renderSum();renderRecips();renderEditBanner();page(S.editingId?"settle":"dash");
 }
 $("loginForm").addEventListener("submit",async e=>{e.preventDefault();$("lErr").hidden=true;$("lBtn").disabled=true;
   const {error}=await sb.auth.signInWithPassword({email:$("lEmail").value.trim(),password:$("lPass").value});
