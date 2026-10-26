@@ -628,6 +628,7 @@ function bindHistory(){
   box.querySelectorAll("[data-hrm]").forEach(b=>b.onclick=async()=>{
     if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Confirm delete";setTimeout(()=>{b.dataset.armed="";b.textContent="Delete"},3000);return}
     const h=S.history[+b.dataset.hrm];await q(sb.from("ts_settlements").delete().eq("id",h.id),"delete settlement");
+    if(S.editingId===h.id){S.editingId=null;S.draftBackup=null;save();renderEditBanner()}
     S.history=S.history.filter(x=>x.id!==h.id);renderHistory();toast("Settlement deleted")});
 }
 function refreshSettle(){fillDriverSelect();fillVehSelect();$("vehicle").value=S.vehicle||"";$("sdate").value=S.sdate||"";renderBank();renderTrips();renderSum();renderEditBanner()}
@@ -911,8 +912,13 @@ async function saveSettlement(withEmail){
     if(S.editingId){
       const h=S.history.find(x=>x.id===S.editingId);
       sid=S.editingId;
-      await q(sb.from("ts_settlements").update(withEmail?{...row,revisions:(h?.revisions||0)+1,resent_at:new Date().toISOString()}:row).eq("id",sid),"save settlement");
-      await q(sb.from("ts_trips").delete().eq("settlement_id",sid),"replace trips");
+      const upd=await q(sb.from("ts_settlements").update(withEmail?{...row,revisions:(h?.revisions||0)+1,resent_at:new Date().toISOString()}:row).eq("id",sid).select("id"),"save settlement");
+      if(!upd||!upd.length){
+        // The settlement being edited was deleted meanwhile: save these trips as a new settlement instead
+        sid=(await q(sb.from("ts_settlements").insert(row).select("id").single(),"save settlement")).id;
+        S.history=S.history.filter(x=>x.id!==S.editingId);
+        toast("The original settlement was deleted, so this was saved as a new one");
+      }else await q(sb.from("ts_trips").delete().eq("settlement_id",sid),"replace trips");
     }else{
       sid=(await q(sb.from("ts_settlements").insert(row).select("id").single(),"save settlement")).id;
     }
