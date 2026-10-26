@@ -1,0 +1,656 @@
+<title>Trip Settlement Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column (max 760px) — driver card, tab switch, trip cards / summary. Road-sign amber from the Excel header as the single accent. */
+:root{
+  --bg:#f8f9fb; --card:#ffffff; --ink:#18202c; --muted:#5f6b7a; --line:#dde2e9;
+  --accent:#f2b705; --accent-ink:#3a2c00; --accent-soft:#fff6d6;
+  --good:#1d7a4a; --good-soft:#e3f4ea; --bad:#b4322a; --bad-soft:#fbe7e5; --warn-soft:#fff1d1;
+  color-scheme:light;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--accent)}
+.topbar{background:var(--accent);color:var(--accent-ink)}
+.topbar .in,.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar .in{padding-block:14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.topbar h1{font-family:var(--display);font-size:1.7rem;margin:0;letter-spacing:.02em;text-transform:uppercase}
+.topbar small{font-weight:600;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase}
+.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.label{font-size:.72rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+@media(min-width:600px){.grid.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f.span2{grid-column:span 2}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.tabs button{font:600 .95rem var(--body);border:0;border-radius:7px;padding:9px;background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.trip-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.trip-head .t{font-family:var(--display);font-size:1.25rem;letter-spacing:.02em}
+.route{color:var(--muted);font-size:.85rem}
+.del{border:1px solid var(--line);background:transparent;color:var(--bad);border-radius:7px;padding:5px 10px;font:600 .8rem var(--body);cursor:pointer}
+.calc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{font-family:var(--mono);font-size:.8rem;padding:4px 9px;border-radius:999px;background:var(--bg);border:1px solid var(--line)}
+.chip b{font-family:var(--body);font-weight:600;color:var(--muted);margin-right:4px}
+.chip.good{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.chip.bad{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.btn{font:600 .95rem var(--body);border-radius:9px;padding:11px 14px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.dark{background:var(--card);color:var(--ink);border-color:var(--ink)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .btn{flex:1 1 160px}
+.warn{background:var(--warn-soft);border-radius:10px;padding:10px 12px;font-size:.88rem}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(min-width:600px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.tile .v{font-family:var(--mono);font-size:1.15rem;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.net{background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.net .v{font-family:var(--mono);font-size:1.6rem;font-weight:600}
+.net .label{color:inherit;opacity:.75}
+.net .formula{font-size:.8rem;opacity:.75;font-family:var(--mono)}
+.sum-list{display:flex;flex-direction:column}
+.sum-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:10px 0;border-top:1px solid var(--line)}
+.sum-item:first-child{border-top:0}
+.sum-item .d{font-weight:600}
+.sum-item .m{font-family:var(--mono);font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.sum-item .amt{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+h2{font-family:var(--display);font-size:1.3rem;margin:0 0 8px;letter-spacing:.02em}
+.recip{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,1.4fr);gap:8px;align-items:center;margin-top:8px}
+@media(max-width:480px){.recip{grid-template-columns:28px minmax(0,1fr)}.recip input:last-child{grid-column:2}}
+.n{font-family:var(--mono);color:var(--muted);text-align:center}
+.mailbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px;margin-top:4px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.12);padding:10px 16px;border-radius:999px;font-weight:600}
+.pos{color:var(--bad)} .negv{color:var(--good)}
+.pages{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.08);padding:3px;border-radius:9px}
+.pages button{font:600 .85rem var(--body);border:0;border-radius:7px;padding:7px 12px;background:transparent;color:var(--accent-ink);cursor:pointer}
+.pages button[aria-current="page"]{background:var(--card)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px}
+.kv div{min-width:0}.kv .val{font-weight:600;overflow-wrap:anywhere}
+.kv .val.missing{color:var(--bad);font-weight:500}
+.drow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.drow:first-child{border-top:0}.drow .m{font-family:var(--mono);font-size:.82rem;color:var(--muted);overflow-wrap:anywhere}
+.drow .acts{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.hcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.hcard.pend{border-left:4px solid var(--accent)}.hcard.sent{border-left:4px solid var(--good)}
+.hhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.hhead .amt{font-family:var(--mono);font-weight:600;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.hmeta{color:var(--muted);font-size:.85rem}
+.stsel{width:auto;padding:6px 10px;font-weight:600;font-size:.85rem;border-radius:999px}
+.stsel.pend{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
+.stsel.sent{background:var(--good-soft);color:var(--good);border-color:transparent}
+.hdetail{border-top:1px dashed var(--line);padding-top:10px}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{font:600 .78rem var(--body);border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:5px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.bars{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.bar .nm{font-weight:600;overflow-wrap:anywhere}
+.bar .val{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.bar .track{grid-column:1/-1;height:10px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:#2f5d8a;border-radius:0 4px 4px 0;min-width:2px}
+.bar .sub{grid-column:1/-1;font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.bar .tag{font:600 .7rem var(--body);padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.dtbl{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+.dtbl th,.dtbl td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right}
+.dtbl th:first-child,.dtbl td:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+.dtbl thead th{background:#eef1f5;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none}
+.dtbl thead th:first-child{background:#eef1f5}
+.dtbl thead th[aria-sort] {color:var(--ink)}
+.dtbl td{font-family:var(--mono)}.dtbl td:first-child{font-family:var(--body);font-weight:600}
+.dtbl tfoot td{background:var(--accent-soft);font-weight:700;border-bottom:0}
+.dtbl tfoot td:first-child{background:var(--accent-soft)}
+.tag.on{background:var(--good-soft);color:var(--good)}.tag.off{background:var(--bad-soft);color:var(--bad)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="topbar"><div class="in"><h1>Trip Settlement</h1><nav class="pages" id="appNav" hidden><button id="pgSettle" aria-current="page">New trips</button><button id="pgHistory">Previous trips</button><button id="pgDash">Dashboard</button><button id="pgDrivers">Drivers &amp; vehicles</button><button id="signOut" title="Sign out">Sign out</button></nav></div></header>
+
+<main class="wrap" id="pageLogin">
+  <section class="card" style="max-width:420px;margin:32px auto;width:100%">
+    <h2>Sign in</h2>
+    <div class="route" style="margin-bottom:12px">Use the email and password created for you in Supabase.</div>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:10px">
+      <label class="f"><span class="label">Email</span><input id="lEmail" type="email" autocomplete="username" required></label>
+      <label class="f"><span class="label">Password</span><input id="lPass" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary" id="lBtn" type="submit">Sign in</button>
+      <div id="lErr" class="warn" hidden style="background:var(--bad-soft);color:var(--bad)"></div>
+    </form>
+  </section>
+</main>
+<div id="loading" class="wrap" hidden><div class="card route">Loading data…</div></div>
+
+<main class="wrap" id="pageSettle" hidden>
+  <section class="card">
+    <div class="grid g4">
+      <label class="f span2"><span class="label">Driver name</span><select id="driver"></select></label>
+      <label class="f"><span class="label">Vehicle no</span><select id="vehicle"></select></label>
+      <label class="f"><span class="label">Settlement date</span><input id="sdate" type="date"></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="trip-head" style="margin-bottom:6px"><h2 style="margin:0">Driver bank details</h2><button class="del" style="color:var(--ink)" id="editBank">Edit in Drivers page</button></div>
+    <div id="bankView" class="kv"></div>
+  </section>
+
+  <div id="editBanner" class="warn" hidden style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--accent)">
+    <div id="editText" style="min-width:0"></div>
+    <button class="del" style="color:var(--ink);background:var(--card)" id="cancelEdit">Cancel editing</button>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button id="tabTrips" role="tab" aria-selected="true">Trip entries</button>
+    <button id="tabSum" role="tab" aria-selected="false">Summary &amp; send</button>
+  </nav>
+
+  <section id="viewTrips" style="display:flex;flex-direction:column;gap:14px">
+    <div id="trips" style="display:flex;flex-direction:column;gap:14px"></div>
+    <div class="row"><button class="btn primary" id="addTrip">+ Add trip</button><button class="btn" id="goSum">View summary →</button></div>
+  </section>
+
+  <section id="viewSum" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="tiles">
+      <div class="tile"><div class="label">Trip payment</div><div class="v" id="tPay"></div></div>
+      <div class="tile"><div class="label">Extra amount</div><div class="v" id="tExtra"></div></div>
+      <div class="tile"><div class="label">Advance paid</div><div class="v" id="tAdv"></div></div>
+      <div class="tile"><div class="label">Excess diesel</div><div class="v" id="tExcess"></div></div>
+    </div>
+    <div class="net"><div><div class="label">Total amount payable</div><div class="formula">Trip payment + Extra − Advance</div></div><div class="v" id="tNet"></div><div id="tWords" style="flex-basis:100%;font-weight:600;font-size:.92rem;border-top:1px dashed var(--accent);padding-top:8px"></div></div>
+
+    <div class="card"><h2>Trips</h2><div class="sum-list" id="sumList"></div></div>
+
+    <div class="card">
+      <h2>Email report to</h2>
+      <div class="route">Fill in the 4 email addresses later. The prototype prepares the email; real sending is added in the next step.</div>
+      <div id="recips"></div>
+    </div>
+
+    <div class="card">
+      <h2>Email preview</h2>
+      <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
+      <span class="label">Body</span>
+      <div class="mailbox"><div id="msg"></div></div>
+      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn primary" id="sendBtn">Send for approval</button></div>
+    </div>
+  </section>
+</main>
+
+<main class="wrap" id="pageDrivers" hidden>
+  <section class="card">
+    <h2 id="dFormTitle">Add driver</h2>
+    <div class="grid g3">
+      <label class="f"><span class="label">Driver name *</span><input id="d_name"></label>
+      <label class="f"><span class="label">Account holder name</span><input id="d_accHolder"></label>
+      <label class="f"><span class="label">Account number</span><input id="d_accNo" inputmode="numeric"></label>
+      <label class="f"><span class="label">IFSC code</span><input id="d_ifsc" style="text-transform:uppercase" maxlength="11"></label>
+      <label class="f"><span class="label">Bank name</span><input id="d_bank"></label>
+      <label class="f"><span class="label">Branch</span><input id="d_branch"></label>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="dSave">Save driver</button><button class="btn" id="dCancel" hidden>Cancel edit</button></div>
+  </section>
+  <section class="card">
+    <h2>Saved drivers <span class="route" id="dCount"></span></h2>
+    <div id="dList" class="sum-list"></div>
+  </section>
+  <section class="card">
+    <h2>Standard mileage</h2>
+    <div class="route" style="margin-bottom:10px">Used to work out Udd Actual Diesel (Running km ÷ standard mileage) for every trip.</div>
+    <label class="f" style="max-width:220px"><span class="label">Std mileage (km/L)</span><input id="stdMil" class="num" type="number" step="0.1" min="0"></label>
+  </section>
+  <section class="card">
+    <h2>Vehicles <span class="route" id="vCount"></span></h2>
+    <div class="route" style="margin-bottom:10px">These appear in every vehicle dropdown. Any driver can be paired with any vehicle.</div>
+    <div class="row" style="flex-wrap:nowrap"><input id="v_new" placeholder="e.g. TN12BT6324" style="text-transform:uppercase;flex:1"><button class="btn primary" id="vAdd" style="flex:0 0 auto">Add</button></div>
+    <div id="vList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
+  </section>
+</main>
+<main class="wrap" id="pageHistory" hidden>
+  <div class="tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+    <div class="tile" style="border-color:var(--accent);background:var(--accent-soft)"><div class="label">Pending for approval</div><div class="v" id="hPendAmt"></div><div class="route" id="hPendN"></div></div>
+    <div class="tile" style="background:var(--good-soft);border-color:transparent"><div class="label">Sent</div><div class="v" id="hSentAmt"></div><div class="route" id="hSentN"></div></div>
+  </div>
+  <section class="card">
+    <div class="grid">
+      <label class="f"><span class="label">Driver</span><select id="hFDriver"></select></label>
+      <label class="f"><span class="label">Payment status</span><select id="hFStatus"><option value="">All</option><option>Pending for Approval</option><option>Sent</option></select></label>
+    </div>
+  </section>
+  <div id="hList" style="display:flex;flex-direction:column;gap:12px"></div>
+</main>
+<main class="wrap" id="pageDash" hidden>
+  <section class="card">
+    <div class="grid g4">
+      <label class="f"><span class="label">Trip date from</span><input type="date" id="dbFrom"></label>
+      <label class="f"><span class="label">Trip date to</span><input type="date" id="dbTo"></label>
+      <label class="f"><span class="label">Driver status</span><select id="dbDStatus"><option value="">All drivers</option><option>Active</option><option>Inactive</option></select></label>
+      <label class="f"><span class="label">Payment status</span><select id="dbPStatus"><option value="">All</option><option>Pending for Approval</option><option>Sent</option></select></label>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.88rem;color:var(--muted)"><input type="checkbox" id="dbDraft" checked style="width:auto"> Include trips on New trips that are not sent yet</label>
+  </section>
+  <div class="tiles">
+    <div class="tile"><div class="label">Trips</div><div class="v" id="dbTrips"></div></div>
+    <div class="tile"><div class="label">Running km</div><div class="v" id="dbKm"></div></div>
+    <div class="tile"><div class="label">Avg diesel / trip</div><div class="v" id="dbAvgD"></div></div>
+    <div class="tile"><div class="label">Avg mileage</div><div class="v" id="dbMil"></div></div>
+  </div>
+  <section class="card">
+    <h2>Vehicle-wise</h2>
+    <div class="tblwrap"><table class="dtbl" id="vTbl"></table></div>
+  </section>
+  <section class="card">
+    <h2>Driver-wise</h2>
+    <div class="tblwrap"><table class="dtbl" id="dTbl"></table></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script>
+const inr = n => "₹ " + Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const f2 = n => (Math.round(n*100)/100).toFixed(2);
+// ===== Supabase connection =====
+const SUPABASE_URL="https://kcouuizatvepsebpfxpn.supabase.co";
+const SUPABASE_KEY="sb_publishable_hYSJSYIQg-MUsdWhEpdzVg_vFsgYm5Q";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const blankTrip=(p={})=>({date:"",veh:p.veh||"",from:p.from||"",to:p.to||"",lr:"",pay:0,extra:0,extraRem:"",adv:0,rem:"",startKm:p.closeKm||0,closeKm:0,used:0,km:0});
+// Shared data (drivers, vehicles, settlements, settings) lives in Supabase.
+// Only the unsent draft on "New trips" is kept in this browser.
+let S={driver:"",vehicle:"",sdate:new Date().toISOString().slice(0,10),stdMil:4,trips:[blankTrip()],
+  history:[],drivers:[],vehicles:[],recips:[1,2,3,4].map(()=>({name:"",contact:""})),editingId:null,draftBackup:null};
+const DRAFT_KEY="ts_draft_v1";
+try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(d)Object.assign(S,d)}catch(e){}
+const drv=()=>S.drivers.find(d=>d.name===S.driver)||{};
+const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup}))}catch(e){}};
+// ===== data layer =====
+async function q(p,what){const {data,error}=await p;if(error){console.error(error);toast(`Could not ${what}: ${error.message}`);throw error}return data}
+const drvFromRow=r=>({id:r.id,name:r.name,status:r.status,accHolder:r.acc_holder||"",accNo:r.acc_no||"",ifsc:r.ifsc||"",bank:r.bank_name||"",branch:r.branch||""});
+const drvToRow=d=>({name:d.name,status:d.status||"Active",acc_holder:d.accHolder||null,acc_no:d.accNo||null,ifsc:d.ifsc||null,bank_name:d.bank||null,branch:d.branch||null});
+const tripFromRow=r=>({date:r.trip_date||"",veh:r.vehicle_no||"",from:r.from_place||"",to:r.to_place||"",lr:r.lr_no||"",pay:+r.trip_payment||0,extra:+r.extra_amount||0,extraRem:r.extra_remarks||"",adv:+r.advance||0,rem:r.remarks||"",startKm:+r.start_km||0,closeKm:+r.close_km||0,used:+r.used_diesel||0,km:+r.running_km||0});
+const tripToRow=(t,i,sid)=>({settlement_id:sid,seq:i,trip_date:t.date||null,vehicle_no:t.veh||null,from_place:t.from||null,to_place:t.to||null,lr_no:t.lr||null,trip_payment:t.pay||0,extra_amount:t.extra||0,extra_remarks:t.extraRem||null,advance:t.adv||0,used_diesel:t.used||0,start_km:t.startKm||0,close_km:t.closeKm||0,running_km:t.km||0,remarks:t.rem||null});
+const ms=v=>v?new Date(v).getTime():null;
+const histFromRow=r=>({id:r.id,savedAt:ms(r.created_at),status:r.status,driver:r.driver_name,vehicle:r.vehicle_no||"",sdate:r.settlement_date||"",
+  trips:(r.ts_trips||[]).sort((a,b)=>a.seq-b.seq).map(tripFromRow),bank:r.bank||{},net:+r.net||0,subject:r.subject||"",revisions:r.revisions||0,
+  resentAt:ms(r.resent_at),statusAt:ms(r.status_at),dieselDebit:+r.diesel_debit||0,debitRem:r.debit_remarks||"",debitAt:ms(r.debit_at)});
+async function loadAll(){
+  const [drivers,vehicles,hist,settings,recips]=await Promise.all([
+    q(sb.from("ts_drivers").select("*").order("name"),"load drivers"),
+    q(sb.from("ts_vehicles").select("vehicle_no").order("created_at"),"load vehicles"),
+    q(sb.from("ts_settlements").select("*, ts_trips(*)").order("created_at"),"load settlements"),
+    q(sb.from("ts_settings").select("*"),"load settings"),
+    q(sb.from("ts_recipients").select("*").order("slot"),"load recipients")]);
+  S.drivers=drivers.map(drvFromRow);S.vehicles=vehicles.map(v=>v.vehicle_no);S.history=hist.map(histFromRow);
+  const m=settings.find(x=>x.key==="std_mileage");if(m)S.stdMil=+m.value;
+  S.recips=[1,2,3,4].map(n=>{const r=recips.find(x=>x.slot===n);return {name:r?.name||"",contact:r?.email||""}});
+  if(S.editingId&&!S.history.some(h=>h.id===S.editingId)){S.editingId=null;S.draftBackup=null}
+}
+const $=id=>document.getElementById(id);
+
+function calc(t){
+  const allowed = S.stdMil>0 ? t.km/S.stdMil : 0;      // Udd actual diesel
+  const mileage = t.used>0 ? t.km/t.used : 0;          // as per filled diesel
+  const excess = t.used - allowed;                      // +ve = over-used
+  return {allowed,mileage,excess};
+}
+const fmtDate=d=>d?new Date(d+"T00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}).replace(/ /g,"-"):"-";
+
+function head(){
+  fillDriverSelect();fillVehSelect();
+  for(const k of ["vehicle","sdate","stdMil"]){
+    const el=$(k); el.value=S[k]??"";
+    el.oninput=()=>{S[k]=k==="stdMil"?parseFloat(el.value)||0:el.value;save();renderTrips(false);renderSum()}
+  }
+  $("stdMil").onchange=async()=>{const v=parseFloat($("stdMil").value);if(!(v>0)){toast("Enter a mileage above 0");return}
+    await q(sb.from("ts_settings").upsert({key:"std_mileage",value:v}),"save mileage");toast("Standard mileage saved")};
+  $("driver").onchange=()=>{S.driver=$("driver").value;save();renderBank();renderSum()};
+  renderBank();
+}
+const vehOpts=cur=>`<option value="">— Select vehicle —</option>`+S.vehicles.map(v=>`<option ${v===cur?"selected":""}>${esc(v)}</option>`).join("")+(cur&&!S.vehicles.includes(cur)?`<option selected>${esc(cur)}</option>`:"");
+function fillVehSelect(){$("vehicle").innerHTML=vehOpts(S.vehicle)}
+function renderVehicles(){
+  $("vCount").textContent=`(${S.vehicles.length})`;
+  $("vList").innerHTML=S.vehicles.map((v,i)=>`<span class="chip" style="display:inline-flex;gap:6px;align-items:center">${esc(v)}<button class="del" style="padding:1px 7px" data-vrm="${i}" aria-label="Remove ${esc(v)}">×</button></span>`).join("");
+  $("vList").querySelectorAll("[data-vrm]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Remove?";setTimeout(()=>{b.dataset.armed="";b.textContent="×"},3000);return}
+    const v=S.vehicles[+b.dataset.vrm];await q(sb.from("ts_vehicles").delete().eq("vehicle_no",v),"remove vehicle");
+    S.vehicles=S.vehicles.filter(x=>x!==v);renderVehicles();fillVehSelect();renderTrips();toast(`${v} removed`)});
+}
+$("vAdd").onclick=async()=>{const v=$("v_new").value.trim().toUpperCase().replace(/\s+/g,"");
+  if(!v){toast("Enter a vehicle number");return}
+  if(S.vehicles.includes(v)){toast(`${v} is already in the list`);return}
+  await q(sb.from("ts_vehicles").insert({vehicle_no:v}),"add vehicle");
+  S.vehicles.push(v);$("v_new").value="";renderVehicles();fillVehSelect();renderTrips();toast(`${v} added`)};
+function fillDriverSelect(){
+  const act=S.drivers.filter(d=>d.status!=="Inactive").map(d=>d.name);
+  $("driver").innerHTML=`<option value="">— Select driver —</option>`+act.map(n=>`<option ${n===S.driver?"selected":""}>${esc(n)}</option>`).join("")+(S.driver&&!act.includes(S.driver)?`<option value="${esc(S.driver)}" selected disabled>${esc(S.driver)} (Inactive)</option>`:"");
+}
+const BANK=[["accHolder","Account holder"],["accNo","Account number"],["ifsc","IFSC code"],["bank","Bank name"],["branch","Branch"]];
+const driverBlocked=()=>!!S.driver&&drv().status==="Inactive";
+function renderBank(){
+  const d=drv();
+  if(driverBlocked()){$("bankView").innerHTML=`<div class="warn" style="grid-column:1/-1;background:var(--bad-soft);color:var(--bad)"><b>${esc(S.driver)} is inactive.</b> Select an active driver, or set him back to Active on the Drivers &amp; vehicles page.</div>`;return}
+  if(!S.driver){$("bankView").innerHTML=`<div class="route" style="grid-column:1/-1">Select a driver to show bank details.</div>`;return}
+  $("bankView").innerHTML=BANK.map(([k,l])=>`<div><div class="label">${l}</div><div class="val ${d[k]?"":"missing"}">${d[k]?esc(k==="ifsc"?d[k].toUpperCase():d[k]):"Not added"}</div></div>`).join("");
+}
+let editIdx=-1;
+function renderDrivers(){
+  $("dCount").textContent=`(${S.drivers.length})`;
+  $("dList").innerHTML=S.drivers.length?S.drivers.map((d,i)=>`<div class="drow"><div style="min-width:0"><div style="font-weight:700">${esc(d.name)}</div>
+    <div class="m">${d.accNo?esc(d.accNo):"No account no"} · ${d.ifsc?esc(d.ifsc.toUpperCase()):"No IFSC"}${d.bank?" · "+esc(d.bank):""}${d.branch?", "+esc(d.branch):""}</div></div>
+    <div class="acts"><select data-st="${i}" aria-label="Status of ${esc(d.name)}" style="width:auto;padding:5px 8px;font-size:.82rem;font-weight:600;${d.status==="Inactive"?"color:var(--bad);background:var(--bad-soft)":"color:var(--good);background:var(--good-soft)"}"><option ${d.status!=="Inactive"?"selected":""}>Active</option><option ${d.status==="Inactive"?"selected":""}>Inactive</option></select><button class="del" style="color:var(--ink)" data-edit="${i}">Edit</button><button class="del" data-rm="${i}">Delete</button></div></div>`).join("")
+    :`<div class="route">No drivers yet. Add the first one above.</div>`;
+  $("dList").querySelectorAll("[data-st]").forEach(el=>el.onchange=async()=>{const d=S.drivers[+el.dataset.st];
+    try{await q(sb.from("ts_drivers").update({status:el.value}).eq("id",d.id),"update status")}catch(e){renderDrivers();return}
+    d.status=el.value;renderDrivers();fillDriverSelect();renderBank();renderSum();toast(`${d.name} is now ${el.value}`)});
+  $("dList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{editIdx=+b.dataset.edit;const d=S.drivers[editIdx];
+    for(const k of ["name",...BANK.map(x=>x[0])])$("d_"+k).value=d[k]||"";
+    $("dFormTitle").textContent="Edit driver";$("dSave").textContent="Update driver";$("dCancel").hidden=false;window.scrollTo(0,0)});
+  $("dList").querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Confirm delete";setTimeout(()=>{b.dataset.armed="";b.textContent="Delete"},3000);return}
+    const gone=S.drivers[+b.dataset.rm];await q(sb.from("ts_drivers").delete().eq("id",gone.id),"delete driver");
+    S.drivers=S.drivers.filter(x=>x.id!==gone.id);if(editIdx>=0)resetDForm();renderDrivers();fillDriverSelect();renderBank();renderSum();toast(`${gone.name} deleted`)});
+}
+function resetDForm(){editIdx=-1;for(const k of ["name",...BANK.map(x=>x[0])])$("d_"+k).value="";
+  $("dFormTitle").textContent="Add driver";$("dSave").textContent="Save driver";$("dCancel").hidden=true}
+$("dCancel").onclick=resetDForm;
+$("dSave").onclick=async()=>{
+  const d={};for(const k of ["name",...BANK.map(x=>x[0])])d[k]=$("d_"+k).value.trim();
+  d.ifsc=d.ifsc.toUpperCase();
+  if(!d.name){toast("Enter the driver name");$("d_name").focus();return}
+  if(d.ifsc&&!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(d.ifsc)){toast("IFSC must be 11 characters, like SBIN0001234");$("d_ifsc").focus();return}
+  const dup=S.drivers.findIndex(x=>x.name.toLowerCase()===d.name.toLowerCase());
+  if(dup>=0&&dup!==editIdx){toast("A driver with this name already exists");return}
+  d.status=editIdx>=0?(S.drivers[editIdx].status||"Active"):"Active";
+  if(editIdx>=0){const old=S.drivers[editIdx];
+    const row=await q(sb.from("ts_drivers").update(drvToRow(d)).eq("id",old.id).select().single(),"update driver");
+    S.drivers[editIdx]=drvFromRow(row);if(S.driver===old.name)S.driver=d.name}
+  else{const row=await q(sb.from("ts_drivers").insert(drvToRow(d)).select().single(),"save driver");S.drivers.push(drvFromRow(row))}
+  save();toast(editIdx>=0?"Driver updated":"Driver saved");resetDForm();renderDrivers();fillDriverSelect();renderBank();renderSum();
+};
+function page(x){
+  const name=x===true?"drivers":x===false?"settle":x;
+  const map={settle:["pageSettle","pgSettle"],history:["pageHistory","pgHistory"],dash:["pageDash","pgDash"],drivers:["pageDrivers","pgDrivers"]};
+  for(const [k,[pg,btn]] of Object.entries(map)){$(pg).hidden=k!==name;if(k===name)$(btn).setAttribute("aria-current","page");else $(btn).removeAttribute("aria-current")}
+  if(name==="drivers"){renderDrivers();renderVehicles()}
+  if(name==="history")renderHistory();
+  if(name==="dash")renderDash();
+  window.scrollTo(0,0);
+}
+$("pgSettle").onclick=()=>page("settle");$("pgHistory").onclick=()=>page("history");$("pgDrivers").onclick=()=>page("drivers");
+const finalAmt=h=>h.net-(h.dieselDebit||0);
+const STATUSES=["Pending for Approval","Sent"];
+let openH=new Set();
+function renderHistory(){
+  const H=S.history||[];
+  const drivers=[...new Set(H.map(h=>h.driver))].sort();
+  const fd=$("hFDriver").value;
+  $("hFDriver").innerHTML=`<option value="">All drivers</option>`+drivers.map(d=>`<option ${d===fd?"selected":""}>${esc(d)}</option>`).join("");
+  const fs=$("hFStatus").value;
+  const pend=H.filter(h=>h.status!=="Sent"),sent=H.filter(h=>h.status==="Sent");
+  const sum=a=>a.reduce((x,h)=>x+finalAmt(h),0);
+  $("hPendAmt").textContent=inr(sum(pend));$("hPendN").textContent=`${pend.length} settlement${pend.length===1?"":"s"}`;
+  $("hSentAmt").textContent=inr(sum(sent));$("hSentN").textContent=`${sent.length} settlement${sent.length===1?"":"s"}`;
+  const list=H.map((h,i)=>({h,i})).filter(({h})=>(!fd||h.driver===fd)&&(!fs||h.status===fs)).reverse();
+  if(!H.length){$("hList").innerHTML=`<div class="card route">No previous trips yet. Finish a settlement on <b>New trips</b> and press <b>Send for approval</b>; it will appear here as Pending for Approval.</div>`;return}
+  if(!list.length){$("hList").innerHTML=`<div class="card route">No settlements match these filters.</div>`;return}
+  $("hList").innerHTML=list.map(({h,i})=>{const cls=h.status==="Sent"?"sent":"pend";const dates=h.trips.map(t=>t.date).filter(Boolean).sort();
+    return `<article class="hcard ${cls}">
+    <div class="hhead"><div style="min-width:0"><div style="font-weight:700;font-size:1.05rem">${esc(h.driver)}</div>
+      <div class="hmeta">${esc(h.vehicle||"-")} · Settlement ${fmtDate(h.sdate)} · ${h.trips.length} trip${h.trips.length===1?"":"s"}${dates.length?` (${fmtDate(dates[0])} to ${fmtDate(dates[dates.length-1])})`:""}</div></div>
+      <div style="text-align:right"><div class="amt">${inr(finalAmt(h))}</div>${h.dieselDebit?`<div class="hmeta" style="font-family:var(--mono)">${inr(h.net)} − ${inr(h.dieselDebit)} diesel</div>`:""}${h.revisions?`<span class="chip" style="font-size:.72rem">Revised ×${h.revisions}</span>`:""}</div></div>
+    ${h.status!=="Sent"?`<div class="grid" style="background:var(--bg);border-radius:9px;padding:10px">
+      <label class="f"><span class="label">Diesel debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
+      <label class="f"><span class="label">Debit remarks</span><input id="hdr${h.id}" data-hdr="${i}" value="${esc(h.debitRem||"")}" placeholder="e.g. 12 L excess"></label>
+    </div>`:(h.dieselDebit?`<div class="hmeta">Diesel debit ${inr(h.dieselDebit)}${h.debitRem?" · "+esc(h.debitRem):""}</div>`:"")}
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <select class="stsel ${cls}" data-hst="${i}" aria-label="Payment status">${STATUSES.map(x=>`<option ${x===h.status?"selected":""}>${x}</option>`).join("")}</select>
+      <div class="acts" style="display:flex;gap:6px">${h.status!=="Sent"?`<button class="del" style="color:var(--ink)" data-hedit="${i}">Edit</button>`:""}<button class="del" style="color:var(--ink)" data-hview="${i}">${openH.has(h.id)?"Hide details":"View details"}</button><button class="del" data-hrm="${i}">Delete</button></div>
+    </div>
+    ${openH.has(h.id)?`<div class="hdetail sum-list">${h.trips.map(t=>`<div class="sum-item"><div class="d">${fmtDate(t.date)} · ${esc(t.veh||"-")} · LR ${esc(t.lr||"-")}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div><div class="m">${esc(t.from||"-")} → ${esc(t.to||"-")} · ${t.km||0} km · ${f2(t.used||0)} L used</div><div></div></div>`).join("")}
+      <div class="m" style="padding-top:8px">Total ${inr(h.net)}${h.dieselDebit?` − Diesel debit ${inr(h.dieselDebit)} = <b>${inr(finalAmt(h))}</b>`:""}</div>
+      <div class="m" style="font-weight:600">${esc(inWords(finalAmt(h)))}</div>
+      <div class="m">Bank: ${esc(h.bank.accHolder||"-")} · ${esc(h.bank.accNo||"-")} · ${esc((h.bank.ifsc||"-").toUpperCase())}</div>
+      <div class="m">Saved ${new Date(h.savedAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}${h.resentAt?` · resent ${new Date(h.resentAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:""}${h.statusAt?` · status changed ${new Date(h.statusAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:""}</div></div>`:""}
+  </article>`}).join("");
+  $("hList").querySelectorAll("[data-hst]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hst];const at=new Date();
+    try{await q(sb.from("ts_settlements").update({status:el.value,status_at:at.toISOString()}).eq("id",h.id),"update status")}catch(e){renderHistory();return}
+    h.status=el.value;h.statusAt=at.getTime();renderHistory();toast(`Marked as ${el.value}`)});
+  $("hList").querySelectorAll("[data-hdd]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hdd];const v=Math.max(0,parseFloat(el.value)||0);
+    if(v>h.net){toast("Diesel debit can't be more than the total amount");el.value=h.dieselDebit||"";return}
+    const at=new Date();await q(sb.from("ts_settlements").update({diesel_debit:v,debit_at:at.toISOString()}).eq("id",h.id),"save diesel debit");
+    h.dieselDebit=v;h.debitAt=at.getTime();renderHistory();toast(v?`Diesel debit ${inr(v)} applied`:"Diesel debit removed")});
+  $("hList").querySelectorAll("[data-hdr]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hdr],v=el.value.trim();
+    await q(sb.from("ts_settlements").update({debit_remarks:v||null}).eq("id",h.id),"save debit remarks");h.debitRem=v;toast("Remarks saved")});
+  $("hList").querySelectorAll("[data-hedit]").forEach(b=>b.onclick=()=>startEdit(S.history[+b.dataset.hedit].id));
+  $("hList").querySelectorAll("[data-hview]").forEach(b=>b.onclick=()=>{const id=S.history[+b.dataset.hview].id;openH.has(id)?openH.delete(id):openH.add(id);renderHistory()});
+  $("hList").querySelectorAll("[data-hrm]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Confirm delete";setTimeout(()=>{b.dataset.armed="";b.textContent="Delete"},3000);return}
+    const h=S.history[+b.dataset.hrm];await q(sb.from("ts_settlements").delete().eq("id",h.id),"delete settlement");
+    S.history=S.history.filter(x=>x.id!==h.id);renderHistory();toast("Settlement deleted")});
+}
+function refreshSettle(){fillDriverSelect();fillVehSelect();$("vehicle").value=S.vehicle||"";$("sdate").value=S.sdate||"";renderBank();renderTrips();renderSum();renderEditBanner()}
+function renderEditBanner(){
+  const h=S.editingId&&(S.history||[]).find(x=>x.id===S.editingId);
+  $("editBanner").hidden=!h;
+  $("sendBtn").textContent=h?"Resend for approval":"Send for approval";
+  if(h)$("editText").innerHTML=`<b>Editing:</b> ${esc(h.driver)} · settlement ${fmtDate(h.sdate)}. Make your changes, then press <b>Resend for approval</b> on the Summary tab.`;
+}
+function startEdit(id){
+  const h=S.history.find(x=>x.id===id);if(!h||h.status==="Sent")return;
+  if(!S.editingId)S.draftBackup={driver:S.driver,vehicle:S.vehicle,sdate:S.sdate,trips:S.trips};
+  S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));
+  save();refreshSettle();tab(false);page("settle");toast("Loaded for editing");
+}
+function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips}S.editingId=null;S.draftBackup=null;save();refreshSettle()}
+$("cancelEdit").onclick=()=>{endEdit();toast("Editing cancelled – no changes saved")};
+$("pgDash").onclick=()=>page("dash");
+let vSort={k:"trips",d:-1},dSort={k:"trips",d:-1};
+function dashTrips(){
+  const from=$("dbFrom").value,to=$("dbTo").value,ps=$("dbPStatus").value,out=[];
+  for(const h of S.history||[]){if(ps&&h.status!==ps)continue;for(const t of h.trips)out.push({...t,driver:h.driver})}
+  if($("dbDraft").checked&&!ps&&!S.editingId)for(const t of S.trips)if(t.date||t.km>0||t.used>0)out.push({...t,driver:S.driver});
+  return out.filter(t=>(!from||(t.date&&t.date>=from))&&(!to||(t.date&&t.date<=to)));
+}
+function group(trips,key){const m=new Map();for(const t of trips){const k=t[key]||"(not set)";const g=m.get(k)||{name:k,trips:0,km:0,used:0};g.trips++;g.km+=t.km||0;g.used+=t.used||0;m.set(k,g)}
+  return [...m.values()].map(g=>({...g,avgD:g.trips?g.used/g.trips:0,mil:g.used>0?g.km/g.used:0}))}
+const fmtM={trips:v=>String(v),km:v=>Math.round(v).toLocaleString("en-IN"),used:v=>Number(v).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2}),avgD:v=>f2(v),mil:v=>v?v.toFixed(2):"-"};
+function table(id,rows,sort,setSort,first,extra){
+  const cols=[["name",first],...(extra?[["status","Status"]]:[]),["trips","Trips"],["km","Running km"],["used","Diesel used (L)"],["avgD","Avg diesel / trip (L)"],["mil","Mileage (km/L)"]];
+  if(!rows.length){$(id).innerHTML=`<tbody><tr><td style="text-align:left;font-family:var(--body);font-weight:400;color:var(--muted)">No trips match these filters.</td></tr></tbody>`;return}
+  rows.sort((a,b)=>{const x=a[sort.k],y=b[sort.k];return (typeof x==="string"?x.localeCompare(y):x-y)*sort.d});
+  const t=group(rows.flatMap(()=>[]),"x");const T={trips:0,km:0,used:0};rows.forEach(r=>{T.trips+=r.trips;T.km+=r.km;T.used+=r.used});T.avgD=T.trips?T.used/T.trips:0;T.mil=T.used>0?T.km/T.used:0;
+  const cell=(k,r)=>k==="name"?esc(r.name):k==="status"?`<span class="tag ${r.status==="Active"?"on":"off"}" style="margin:0">${r.status}</span>`:fmtM[k](r[k]);
+  $(id).innerHTML=`<thead><tr>${cols.map(([k,l])=>`<th data-k="${k}" ${sort.k===k?`aria-sort="${sort.d>0?"ascending":"descending"}"`:""}>${l}${sort.k===k?(sort.d>0?" ▲":" ▼"):""}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map(r=>`<tr>${cols.map(([k])=>`<td>${cell(k,r)}</td>`).join("")}</tr>`).join("")}</tbody>
+  <tfoot><tr><td>Total</td>${extra?"<td></td>":""}<td>${T.trips}</td><td>${fmtM.km(T.km)}</td><td>${fmtM.used(T.used)}</td><td>${f2(T.avgD)}</td><td>${fmtM.mil(T.mil)}</td></tr></tfoot>`;
+  $(id).querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;setSort(sort.k===k?{k,d:-sort.d}:{k,d:k==="name"||k==="status"?1:-1});renderDash()});
+}
+const dStatus=n=>{const d=S.drivers.find(x=>x.name===n);return d?(d.status||"Active"):"Removed"};
+function renderDash(){
+  const all=dashTrips();
+  const T={trips:all.length,km:0,used:0};all.forEach(t=>{T.km+=t.km||0;T.used+=t.used||0});
+  $("dbTrips").textContent=T.trips;$("dbKm").textContent=fmtM.km(T.km)+" km";$("dbAvgD").textContent=T.trips?f2(T.used/T.trips)+" L":"-";$("dbMil").textContent=T.used>0?(T.km/T.used).toFixed(2)+" km/L":"-";
+  table("vTbl",group(all,"veh"),vSort,x=>vSort=x,"Vehicle",false);
+  const ds=$("dbDStatus").value;
+  const dr=group(all,"driver").map(r=>({...r,status:dStatus(r.name)})).filter(r=>!ds||r.status===ds);
+  table("dTbl",dr,dSort,x=>dSort=x,"Driver",true);
+}
+["dbFrom","dbTo","dbDStatus","dbPStatus","dbDraft"].forEach(id=>$(id).onchange=renderDash);
+$("hFDriver").onchange=renderHistory;$("hFStatus").onchange=renderHistory;
+$("editBank").onclick=()=>{page("drivers");const i=S.drivers.findIndex(d=>d.name===S.driver);if(i>=0)$("dList").querySelector(`[data-edit="${i}"]`)?.click()};
+function checkVeh(){}
+function field(i,key,label,type="text",cls=""){
+  const t=S.trips[i];
+  return `<label class="f ${cls}"><span class="label">${label}</span><input id="t${i}_${key}" data-i="${i}" data-k="${key}" type="${type}" ${type==="number"?'class="num" step="any"':''} value="${t[key]??""}"></label>`;
+}
+function renderTrips(full=true){
+  const box=$("trips");
+  if(full){
+    box.innerHTML=S.trips.map((t,i)=>`
+    <article class="card" id="trip${i}">
+      <div class="trip-head"><div><div class="t">Trip ${i+1} · <span id="dl${i}">${fmtDate(t.date)}</span></div><div class="route" id="rt${i}"></div></div><button class="del" data-del="${i}">Remove</button></div>
+      <div class="grid g3">
+        ${field(i,"date","Date","date")}<label class="f"><span class="label">Vehicle no</span><select id="t${i}_veh" data-i="${i}" data-k="veh">${vehOpts(t.veh)}</select></label>${field(i,"from","From")}
+        ${field(i,"to","To")}${field(i,"lr","LR No")}${field(i,"pay","Trip payment ₹","number")}
+        ${field(i,"extra","Extra amount ₹","number")}${field(i,"extraRem","Extra amount remarks")}${field(i,"adv","Advance ₹","number")}
+        ${field(i,"used","Used diesel (L)","number")}${field(i,"startKm","Starting km","number")}${field(i,"closeKm","Closing km","number")}
+        ${field(i,"km","Running km (auto)","number")}${field(i,"rem","Remarks","text","span2")}
+      </div>
+      <div class="calc" id="calc${i}"></div>
+    </article>`).join("");
+    box.querySelectorAll("input,select").forEach(el=>el.oninput=el.onchange=()=>{
+      const i=+el.dataset.i,k=el.dataset.k;
+      S.trips[i][k]= el.type==="number"? (parseFloat(el.value)||0) : el.value;
+      if(k==="startKm"||k==="closeKm"){const t=S.trips[i];t.km=(t.startKm>0&&t.closeKm>0)?Math.max(0,t.closeKm-t.startKm):0}
+      save();renderTrips(false);renderSum();checkVeh();
+    });
+    box.querySelectorAll('[data-k="km"]').forEach(el=>{el.readOnly=true;el.tabIndex=-1;el.style.opacity=".75"});
+    box.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{S.trips.splice(+b.dataset.del,1);save();renderTrips();renderSum();checkVeh()});
+  }
+  S.trips.forEach((t,i)=>{
+    const c=calc(t);
+    $("dl"+i).textContent=fmtDate(t.date);
+    $("rt"+i).textContent=`${t.from||"?"} → ${t.to||"?"}`;
+    $("t"+i+"_km").value=t.km;
+    const odoErr=t.startKm>0&&t.closeKm>0&&t.closeKm<t.startKm;
+    $("calc"+i).innerHTML=(odoErr?`<span class="chip bad"><b>Check</b>Closing km is less than starting km</span>`:"")+`<span class="chip"><b>Mileage</b>${f2(c.mileage)} km/L</span>
+      <span class="chip"><b>Udd actual diesel</b>${f2(c.allowed)} L</span>
+      <span class="chip ${c.excess>0?"bad":"good"}"><b>Excess</b>${f2(c.excess)} L</span>`;
+  });
+}
+function totals(){
+  const T={pay:0,extra:0,adv:0,used:0,km:0,allowed:0,excess:0};
+  S.trips.forEach(t=>{const c=calc(t);T.pay+=t.pay;T.extra+=t.extra;T.adv+=t.adv;T.used+=t.used;T.km+=t.km;T.allowed+=c.allowed;T.excess+=c.excess});
+  T.net=T.pay+T.extra-T.adv; return T;
+}
+function renderSum(){
+  const T=totals();
+  $("tPay").textContent=inr(T.pay);$("tExtra").textContent=inr(T.extra);$("tAdv").textContent=inr(T.adv);
+  $("tExcess").innerHTML=`<span class="${T.excess>0?"pos":"negv"}">${f2(T.excess)} L</span>`;
+  $("tNet").textContent=inr(T.net);
+  $("tWords").textContent=inWords(T.net);
+  $("sumList").innerHTML=S.trips.map(t=>{const c=calc(t);return`
+    <div class="sum-item"><div class="d">${fmtDate(t.date)} · ${t.veh}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div>
+    <div class="m">${t.from} → ${t.to} · LR ${t.lr||"-"} · ${t.km} km · ${f2(t.used)} L used${t.extraRem?" · Extra: "+t.extraRem:""}</div><div class="m ${c.excess>0?"pos":"negv"}">${f2(c.excess)} L</div></div>`}).join("");
+  $("msg").innerHTML=emailHTML(T);
+  $("subj").value=`Need Approval For Trip Settlement - ${S.driver} - ${S.vehicle} - ${fmtDate(S.sdate)}`;
+}
+function inWords(amt){
+  const ones=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+  const tens=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+  const two=n=>n<20?ones[n]:tens[Math.floor(n/10)]+(n%10?" "+ones[n%10]:"");
+  const three=n=>(n>=100?ones[Math.floor(n/100)]+" Hundred"+(n%100?" ":""):"")+(n%100?two(n%100):"");
+  const conv=n=>{if(n===0)return "Zero";const parts=[];
+    const cr=Math.floor(n/1e7);n%=1e7;const lk=Math.floor(n/1e5);n%=1e5;const th=Math.floor(n/1e3);n%=1e3;
+    if(cr)parts.push(conv(cr)+" Crore");if(lk)parts.push(two(lk)+" Lakh");if(th)parts.push(two(th)+" Thousand");if(n)parts.push(three(n));
+    return parts.join(" ")};
+  const neg=amt<0;amt=Math.abs(Math.round((amt||0)*100));const r=Math.floor(amt/100),p=amt%100;
+  return (neg?"Minus ":"")+"Rupees "+conv(r)+(p?" and "+two(p)+" Paise":"")+" Only";
+}
+function emailHTML(T){
+  const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const B="border:1px solid #9aa4b1;padding:5px 8px;";
+  const th=x=>`<th style="${B}background:#e8edf3;font-weight:700;text-align:center;white-space:nowrap">${x}</th>`;
+  const td=(x,al="left",extra="")=>`<td style="${B}text-align:${al};white-space:nowrap;${extra}">${x}</td>`;
+  const n=x=>Number(x||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const cols=["Date","Vehicle No","From","To","LR No","Trip Payment","Extra Amount","Extra Amount Remarks","Advance","Starting Km","Closing Km","Running Km","Used Diesel","Mileage (as per filled diesel)","Udd Actual Diesel","Excess Diesel","Remarks"];
+  const has=v=>!(v===undefined||v===null||v===0||String(v).trim()==="");
+  const D=v=>has(v)?esc(v):"-";
+  const money=v=>has(v)?"₹ "+n(v):"-";
+  const rows=S.trips.map(t=>{const c=calc(t),ok=t.km>0&&t.used>0;return `<tr>${td(fmtDate(t.date))}${td(D(t.veh))}${td(D(t.from))}${td(D(t.to))}${td(D(t.lr))}${td(money(t.pay),"right")}${td(money(t.extra),"right")}${td(D(t.extraRem))}${td(money(t.adv),"right")}${td(D(t.startKm),"right")}${td(D(t.closeKm),"right")}${td(D(t.km),"right")}${td(t.used>0?f2(t.used):"-","right")}${td(ok?c.mileage.toFixed(1):"-","right")}${td(t.km>0?f2(c.allowed):"-","right")}${td(ok?f2(c.excess):"-","right",ok&&c.excess>0?"color:#b4322a;font-weight:700":"")}${td(D(t.rem))}</tr>`}).join("");
+  const Y="background:#fff2cc;font-weight:700;";
+  return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;color:#18202c">
+<p style="margin:0 0 10px">Dear Sir/Madam,<br>Please find the trip settlement details below.</p>
+<table style="border-collapse:collapse;font-size:13px">
+<tr><td colspan="17" style="${B}background:#ffff00;font-size:17px;font-weight:700;text-align:center">Trip Settlement</td></tr>
+<tr><td colspan="17" style="${B}text-align:right;font-weight:700">Driver Name: ${D(S.driver)} &nbsp;|&nbsp; Veh No: ${D(S.vehicle)} &nbsp;|&nbsp; Date: ${fmtDate(S.sdate)}</td></tr>
+<tr>${cols.map(th).join("")}</tr>${rows}
+<tr><td colspan="5" style="${B}${Y}text-align:center">TOTAL</td>${td("₹ "+n(T.pay),"right",Y)}${td("₹ "+n(T.extra),"right",Y)}${td("","left",Y)}${td("₹ "+n(T.adv),"right",Y)}${td("","left",Y)}${td("","left",Y)}${td(T.km,"right",Y)}${td(f2(T.used),"right",Y)}${td("","left",Y)}${td(f2(T.allowed),"right",Y)}${td(f2(T.excess),"right",Y)}${td("","left",Y)}</tr>
+<tr><td colspan="5" style="${B}font-weight:700;text-align:center;font-size:15px">TOTAL AMOUNT</td><td colspan="4" style="${B}font-weight:700;font-size:15px">₹ ${n(T.net)} &nbsp;<span style="font-weight:400;font-size:12px;color:#5f6b7a">(Trip Payment + Extra − Advance)</span></td><td colspan="8" style="${B}"></td></tr>
+<tr><td colspan="5" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="12" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
+</table>
+<p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>
+<table style="border-collapse:collapse;font-size:13px">
+${(d=>[["Account Holder Name",d.accHolder],["Account Number",d.accNo],["IFSC Code",(d.ifsc||"").toUpperCase()],["Bank Name",d.bank],["Branch",d.branch]])(drv()).map(([k,v])=>`<tr><td style="${B}background:#e8edf3;font-weight:700;white-space:nowrap">${k}</td><td style="${B}min-width:200px">${D(v)}</td></tr>`).join("")}
+</table>
+<p style="margin:12px 0 0">Regards,<br><b>Aravindan R</b><br>Uddhava Logistics</p></div>`;
+}
+function message(T){
+  const lines=[`TRIP SETTLEMENT`,`Driver: ${S.driver||"-"}`,`Vehicle: ${S.vehicle||"-"}`,`Date: ${fmtDate(S.sdate)}`,``];
+  S.trips.forEach((t,i)=>{const c=calc(t);lines.push(`${i+1}. ${fmtDate(t.date)} | ${t.veh||"-"} | ${t.from||"-"} → ${t.to||"-"} | LR ${t.lr||"-"}`,`   Pay ${inr(t.pay)} + Extra ${inr(t.extra)} − Adv ${inr(t.adv)}`);if(t.extraRem)lines.push(`   Extra for: ${t.extraRem}`);lines.push(`   ${t.km} km | Used ${f2(t.used)} L | Excess ${f2(c.excess)} L`)});
+  lines.push(``,`Trip payment: ${inr(T.pay)}`,`Extra amount: ${inr(T.extra)}`,`Advance: ${inr(T.adv)}`,`Excess diesel: ${f2(T.excess)} L`,`TOTAL AMOUNT: ${inr(T.net)}`,`(${inWords(T.net)})`);
+  return lines.join("\n");
+}
+function renderRecips(){
+  $("recips").innerHTML=S.recips.map((r,i)=>`<div class="recip"><span class="n">${i+1}</span>
+    <input id="rn${i}" placeholder="Name / role" value="${esc(r.name)}" data-r="${i}" data-k="name">
+    <input id="rc${i}" type="email" placeholder="name@aartycarriers.com" value="${esc(r.contact)}" data-r="${i}" data-k="contact"></div>`).join("");
+  $("recips").querySelectorAll("input").forEach(el=>{el.oninput=()=>{S.recips[+el.dataset.r][el.dataset.k]=el.value};
+    el.onchange=async()=>{const i=+el.dataset.r,r=S.recips[i];await q(sb.from("ts_recipients").upsert({slot:i+1,name:r.name||null,email:r.contact||null}),"save recipient")}});
+}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>el.hidden=true,2200)}
+function tab(sum){
+  $("tabTrips").setAttribute("aria-selected",!sum);$("tabSum").setAttribute("aria-selected",sum);
+  $("viewTrips").hidden=sum;$("viewSum").hidden=!sum;window.scrollTo(0,0);
+}
+$("tabTrips").onclick=()=>tab(false);$("tabSum").onclick=()=>tab(true);$("goSum").onclick=()=>tab(true);
+$("addTrip").onclick=()=>{
+  const last=S.trips[S.trips.length-1]||{};
+  S.trips.push({date:"",veh:last.veh||S.vehicle,from:last.from||"",to:last.to||"",pay:last.pay||0,extra:last.extra||0,lr:"",extraRem:"",adv:last.adv||0,rem:"",startKm:last.closeKm||0,closeKm:0,used:0,km:0});
+  save();renderTrips();renderSum();checkVeh();
+  document.getElementById("trip"+(S.trips.length-1)).scrollIntoView({behavior:"smooth",block:"start"});
+};
+$("copyMsg").onclick=()=>{if(driverBlocked()){toast("This driver is inactive – select an active driver");return}const T=totals(),html=emailHTML(T),txt=message(T);
+  const done=()=>toast("Copied – paste into your email"),fail=()=>{const r=document.createRange();r.selectNodeContents($("msg"));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast("Press Ctrl+C to copy")};
+  try{navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([txt],{type:"text/plain"})})]).then(done).catch(()=>navigator.clipboard.writeText(txt).then(done).catch(fail))}catch(e){fail()}};
+$("sendBtn").onclick=async()=>{
+  if(!S.driver){toast("Select a driver first");return}
+  if(driverBlocked()){toast("This driver is inactive – select an active driver");return}
+  if(!S.trips.length){toast("Add at least one trip");return}
+  const btn=$("sendBtn");if(btn.disabled)return;btn.disabled=true;
+  try{
+    const T=totals(),d=drv();
+    const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
+      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject:$("subj").value,status:"Pending for Approval"};
+    let sid;
+    if(S.editingId){
+      const h=S.history.find(x=>x.id===S.editingId);
+      sid=S.editingId;
+      await q(sb.from("ts_settlements").update({...row,revisions:(h?.revisions||0)+1,resent_at:new Date().toISOString()}).eq("id",sid),"resend settlement");
+      await q(sb.from("ts_trips").delete().eq("settlement_id",sid),"replace trips");
+    }else{
+      sid=(await q(sb.from("ts_settlements").insert(row).select("id").single(),"save settlement")).id;
+    }
+    await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
+    const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
+    const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
+    if(S.editingId){endEdit();toast("Changes saved and resent for approval (email not connected yet)")}
+    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum();toast("Saved as Pending for Approval (email not connected yet)")}
+    tab(false);page("history");
+  }catch(e){/* toast already shown */}
+  finally{btn.disabled=false}
+};
+
+function showApp(on){$("pageLogin").hidden=on;$("appNav").hidden=!on;if(!on)["pageSettle","pageHistory","pageDash","pageDrivers"].forEach(id=>$(id).hidden=true)}
+async function boot(){
+  $("loading").hidden=false;
+  try{await loadAll()}catch(e){$("loading").hidden=true;return}
+  $("loading").hidden=true;showApp(true);
+  head();$("stdMil").value=S.stdMil;renderTrips();renderSum();renderRecips();renderEditBanner();page("settle");
+}
+$("loginForm").addEventListener("submit",async e=>{e.preventDefault();$("lErr").hidden=true;$("lBtn").disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email:$("lEmail").value.trim(),password:$("lPass").value});
+  $("lBtn").disabled=false;
+  if(error){$("lErr").textContent=error.message==="Invalid login credentials"?"Wrong email or password. Please try again.":error.message;$("lErr").hidden=false;return}
+  $("lPass").value="";boot();});
+$("signOut").onclick=async()=>{await sb.auth.signOut();showApp(false);toast("Signed out")};
+sb.auth.getSession().then(({data})=>{if(data.session)boot();else showApp(false)});
+</script>
