@@ -290,7 +290,7 @@ img{max-width:100%}
       <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
-      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn dark" id="saveOnly" hidden>Save changes only (no email)</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
     </div>
   </section>
 </div></main>
@@ -579,7 +579,7 @@ function renderHistory(){
       <td class="num">${inr(h.net)}</td><td class="num">${h.dieselDebit?inr(h.dieselDebit):"-"}</td><td class="num"><b>${inr(finalAmt(h))}</b></td>
       <td><select class="stsel ${cls}" data-hst="${i}" aria-label="Payment status">${STATUSES.map(x=>`<option ${x===h.status?"selected":""}>${x}</option>`).join("")}</select></td>
       <td>${h.emailSentAt?`<span class="pill ok" title="${new Date(h.emailSentAt).toLocaleString("en-IN")}">Sent</span>`:`<span class="pill no" title="${esc(h.emailError||"")}">Not sent</span>`}</td>
-      <td><div class="acts"><button class="lnk" data-hprint="${i}">Print</button><button class="lnk" data-hview="${i}">${openH.has(h.id)?"Hide":"View"}</button>${h.status!=="Sent"?`<button class="lnk" data-hedit="${i}">Edit</button>`:""}${!h.emailSentAt&&h.emailHtml?`<button class="lnk" data-hmail="${i}">Send email</button>`:""}<button class="lnk red" data-hrm="${i}">Delete</button></div></td></tr>`;
+      <td><div class="acts"><button class="lnk" data-hprint="${i}">Print</button><button class="lnk" data-hview="${i}">${openH.has(h.id)?"Hide":"View"}</button>${h.status!=="Sent"?`<button class="lnk" data-hedit="${i}">Edit</button>`:""}${h.emailHtml?`<button class="lnk" data-hmail="${i}">${h.emailSentAt?"Resend email":"Send email"}</button>`:""}<button class="lnk red" data-hrm="${i}">Delete</button></div></td></tr>`;
     const det=openH.has(h.id)?`<tr class="det"><td colspan="10"><div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
       ${h.status!=="Sent"?`<div class="grid" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;max-width:560px">
         <label class="f"><span class="label">Diesel debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
@@ -631,8 +631,8 @@ function refreshSettle(){fillDriverSelect();fillVehSelect();$("vehicle").value=S
 function renderEditBanner(){
   const h=S.editingId&&(S.history||[]).find(x=>x.id===S.editingId);
   $("editBanner").hidden=!h;
-  $("sendBtn").textContent=h?"Resend for approval & email":"Send for approval & email";
-  if(h)$("editText").innerHTML=`<b>Editing:</b> ${esc(h.driver)} · settlement ${fmtDate(h.sdate)}. Make your changes, then press <b>Resend for approval</b> on the Summary tab.`;
+  $("sendBtn").textContent=h?"Resend for approval & email":"Send for approval & email";$("saveOnly").hidden=!h;
+  if(h)$("editText").innerHTML=`<b>Editing:</b> ${esc(h.driver)} · settlement ${fmtDate(h.sdate)}. Make your changes, then on the Summary tab press <b>Save changes only</b> (no email) or <b>Resend for approval &amp; email</b>. Until then, changes are not saved.`;
 }
 function startEdit(id){
   const h=S.history.find(x=>x.id===id);if(!h||h.status==="Sent")return;
@@ -893,21 +893,22 @@ async function sendMail(sid,subject,html){
   return {ok,err};
 }
 const hasRecipients=()=>S.recips.some(r=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((r.contact||"").trim()));
-$("sendBtn").onclick=async()=>{
+async function saveSettlement(withEmail){
   if(!S.driver){toast("Select a driver first");return}
   if(driverBlocked()){toast("This driver is inactive – select an active driver");return}
   if(!S.trips.length){toast("Add at least one trip");return}
-  if(MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email under “Email report to”");return}
-  const btn=$("sendBtn");if(btn.disabled)return;btn.disabled=true;
+  if(withEmail&&MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email in Settings");return}
+  const btn=$(withEmail?"sendBtn":"saveOnly");if(btn.disabled)return;btn.disabled=true;
   try{
     const T=totals(),d=drv(),html=emailHTML(T),subject=(S.editingId?"Revised - ":"")+$("subj").value;
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
-      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,email_sent_at:null,email_error:null,status:"Pending for Approval"};
+      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,status:"Pending for Approval"};
+    if(withEmail){row.email_sent_at=null;row.email_error=null}
     let sid;
     if(S.editingId){
       const h=S.history.find(x=>x.id===S.editingId);
       sid=S.editingId;
-      await q(sb.from("ts_settlements").update({...row,revisions:(h?.revisions||0)+1,resent_at:new Date().toISOString()}).eq("id",sid),"resend settlement");
+      await q(sb.from("ts_settlements").update(withEmail?{...row,revisions:(h?.revisions||0)+1,resent_at:new Date().toISOString()}:row).eq("id",sid),"save settlement");
       await q(sb.from("ts_trips").delete().eq("settlement_id",sid),"replace trips");
     }else{
       sid=(await q(sb.from("ts_settlements").insert(row).select("id").single(),"save settlement")).id;
@@ -915,6 +916,7 @@ $("sendBtn").onclick=async()=>{
     await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
     const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
     const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
+    if(!withEmail){endEdit();toast("Changes saved – no email sent");tab(false);page("history");return}
     const mail=await sendMail(sid,subject,html);
     const note=mail.ok?"email sent":`email NOT sent: ${mail.err}`;
     if(S.editingId){endEdit();toast(`Resent for approval – ${note}`)}
@@ -922,7 +924,9 @@ $("sendBtn").onclick=async()=>{
     tab(false);page("history");
   }catch(e){/* toast already shown */}
   finally{btn.disabled=false}
-};
+}
+$("sendBtn").onclick=()=>saveSettlement(true);
+$("saveOnly").onclick=()=>saveSettlement(false);
 
 function showApp(on){$("pageLogin").hidden=on;$("loginTop").hidden=on;$("shell").hidden=!on}
 async function showUser(){const {data}=await sb.auth.getUser();const m=data?.user?.email||"";$("uMail").textContent=m;const nm=m.split("@")[0].replace(/[._]/g," ").replace(/\b\w/g,c=>c.toUpperCase());$("uName").textContent=nm||"Signed in";$("uAv").textContent=(nm[0]||"U").toUpperCase()}
