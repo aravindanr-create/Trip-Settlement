@@ -181,7 +181,7 @@ img{max-width:100%}
 
     <div class="card">
       <h2>Email report to</h2>
-      <div class="route">Fill in the 4 email addresses later. The prototype prepares the email; real sending is added in the next step.</div>
+      <div class="route">The approval email goes to these addresses when you press “Send for approval &amp; email”. Changes save when you leave each box.</div>
       <div id="recips"></div>
     </div>
 
@@ -190,7 +190,7 @@ img{max-width:100%}
       <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
-      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn primary" id="sendBtn">Send for approval</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
     </div>
   </section>
 </main>
@@ -271,6 +271,8 @@ const f2 = n => (Math.round(n*100)/100).toFixed(2);
 // ===== Supabase connection =====
 const SUPABASE_URL="https://kcouuizatvepsebpfxpn.supabase.co";
 const SUPABASE_KEY="sb_publishable_hYSJSYIQg-MUsdWhEpdzVg_vFsgYm5Q";
+// Google Apps Script web app that sends the emails (see apps-script/Code.gs). Paste its /exec URL here.
+const MAIL_URL="";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const blankTrip=(p={})=>({date:"",veh:p.veh||"",from:p.from||"",to:p.to||"",lr:"",retFrom:p.retFrom||"",retTo:p.retTo||"",retLr:"",retAuto:p.retAuto,pay:0,extra:0,extraRem:"",adv:0,rem:"",startKm:p.closeKm||0,closeKm:0,used:0,km:0});
 // Shared data (drivers, vehicles, settlements, settings) lives in Supabase.
@@ -289,7 +291,7 @@ const drvToRow=d=>({name:d.name,status:d.status||"Active",acc_holder:d.accHolder
 const tripFromRow=r=>({date:r.trip_date||"",veh:r.vehicle_no||"",from:r.from_place||"",to:r.to_place||"",lr:r.lr_no||"",retFrom:r.ret_from||"",retTo:r.ret_to||"",retLr:r.ret_lr_no||"",retAuto:false,pay:+r.trip_payment||0,extra:+r.extra_amount||0,extraRem:r.extra_remarks||"",adv:+r.advance||0,rem:r.remarks||"",startKm:+r.start_km||0,closeKm:+r.close_km||0,used:+r.used_diesel||0,km:+r.running_km||0});
 const tripToRow=(t,i,sid)=>({settlement_id:sid,seq:i,trip_date:t.date||null,vehicle_no:t.veh||null,from_place:t.from||null,to_place:t.to||null,lr_no:t.lr||null,ret_from:t.retFrom||null,ret_to:t.retTo||null,ret_lr_no:t.retLr||null,trip_payment:t.pay||0,extra_amount:t.extra||0,extra_remarks:t.extraRem||null,advance:t.adv||0,used_diesel:t.used||0,start_km:t.startKm||0,close_km:t.closeKm||0,running_km:t.km||0,remarks:t.rem||null});
 const ms=v=>v?new Date(v).getTime():null;
-const histFromRow=r=>({id:r.id,savedAt:ms(r.created_at),status:r.status,driver:r.driver_name,vehicle:r.vehicle_no||"",sdate:r.settlement_date||"",
+const histFromRow=r=>({emailHtml:r.email_html||"",emailSentAt:ms(r.email_sent_at),emailError:r.email_error||"",id:r.id,savedAt:ms(r.created_at),status:r.status,driver:r.driver_name,vehicle:r.vehicle_no||"",sdate:r.settlement_date||"",
   trips:(r.ts_trips||[]).sort((a,b)=>a.seq-b.seq).map(tripFromRow),bank:r.bank||{},net:+r.net||0,subject:r.subject||"",revisions:r.revisions||0,
   resentAt:ms(r.resent_at),statusAt:ms(r.status_at),dieselDebit:+r.diesel_debit||0,debitRem:r.debit_remarks||"",debitAt:ms(r.debit_at)});
 async function loadAll(){
@@ -422,9 +424,10 @@ function renderHistory(){
       <label class="f"><span class="label">Diesel debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
       <label class="f"><span class="label">Debit remarks</span><input id="hdr${h.id}" data-hdr="${i}" value="${esc(h.debitRem||"")}" placeholder="e.g. 12 L excess"></label>
     </div>`:(h.dieselDebit?`<div class="hmeta">Diesel debit ${inr(h.dieselDebit)}${h.debitRem?" · "+esc(h.debitRem):""}</div>`:"")}
+    <div class="hmeta" style="color:${h.emailSentAt?"var(--good)":"var(--bad)"}">${h.emailSentAt?`✓ Email sent ${new Date(h.emailSentAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:`✗ Email not sent${h.emailError?" – "+esc(h.emailError):""}`}</div>
     <div class="row" style="align-items:center;justify-content:space-between">
       <select class="stsel ${cls}" data-hst="${i}" aria-label="Payment status">${STATUSES.map(x=>`<option ${x===h.status?"selected":""}>${x}</option>`).join("")}</select>
-      <div class="acts" style="display:flex;gap:6px">${h.status!=="Sent"?`<button class="del" style="color:var(--ink)" data-hedit="${i}">Edit</button>`:""}<button class="del" style="color:var(--ink)" data-hview="${i}">${openH.has(h.id)?"Hide details":"View details"}</button><button class="del" data-hrm="${i}">Delete</button></div>
+      <div class="acts" style="display:flex;gap:6px">${h.status!=="Sent"?`<button class="del" style="color:var(--ink)" data-hedit="${i}">Edit</button>`:""}${!h.emailSentAt&&h.emailHtml?`<button class="del" style="color:var(--ink)" data-hmail="${i}">Send email</button>`:""}<button class="del" style="color:var(--ink)" data-hview="${i}">${openH.has(h.id)?"Hide details":"View details"}</button><button class="del" data-hrm="${i}">Delete</button></div>
     </div>
     ${openH.has(h.id)?`<div class="hdetail sum-list">${h.trips.map(t=>`<div class="sum-item"><div class="d">${fmtDate(t.date)} · ${esc(t.veh||"-")} · LR ${esc(t.lr||"-")}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div><div class="m">${esc(t.from||"-")} → ${esc(t.to||"-")}${t.retFrom||t.retTo?` · Return ${esc(t.retFrom||"-")} → ${esc(t.retTo||"-")} (LR ${esc(t.retLr||"-")})`:""} · ${t.km||0} km · ${f2(t.used||0)} L used</div><div></div></div>`).join("")}
       <div class="m" style="padding-top:8px">Total ${inr(h.net)}${h.dieselDebit?` − Diesel debit ${inr(h.dieselDebit)} = <b>${inr(finalAmt(h))}</b>`:""}</div>
@@ -441,6 +444,9 @@ function renderHistory(){
     h.dieselDebit=v;h.debitAt=at.getTime();renderHistory();toast(v?`Diesel debit ${inr(v)} applied`:"Diesel debit removed")});
   $("hList").querySelectorAll("[data-hdr]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hdr],v=el.value.trim();
     await q(sb.from("ts_settlements").update({debit_remarks:v||null}).eq("id",h.id),"save debit remarks");h.debitRem=v;toast("Remarks saved")});
+  $("hList").querySelectorAll("[data-hmail]").forEach(b=>b.onclick=async()=>{const h=S.history[+b.dataset.hmail];
+    if(MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email first");return}
+    b.disabled=true;b.textContent="Sending…";const m=await sendMail(h.id,h.subject,h.emailHtml);renderHistory();toast(m.ok?"Email sent":`Email not sent: ${m.err}`)});
   $("hList").querySelectorAll("[data-hedit]").forEach(b=>b.onclick=()=>startEdit(S.history[+b.dataset.hedit].id));
   $("hList").querySelectorAll("[data-hview]").forEach(b=>b.onclick=()=>{const id=S.history[+b.dataset.hview].id;openH.has(id)?openH.delete(id):openH.add(id);renderHistory()});
   $("hList").querySelectorAll("[data-hrm]").forEach(b=>b.onclick=async()=>{
@@ -452,7 +458,7 @@ function refreshSettle(){fillDriverSelect();fillVehSelect();$("vehicle").value=S
 function renderEditBanner(){
   const h=S.editingId&&(S.history||[]).find(x=>x.id===S.editingId);
   $("editBanner").hidden=!h;
-  $("sendBtn").textContent=h?"Resend for approval":"Send for approval";
+  $("sendBtn").textContent=h?"Resend for approval & email":"Send for approval & email";
   if(h)$("editText").innerHTML=`<b>Editing:</b> ${esc(h.driver)} · settlement ${fmtDate(h.sdate)}. Make your changes, then press <b>Resend for approval</b> on the Summary tab.`;
 }
 function startEdit(id){
@@ -630,15 +636,30 @@ $("addTrip").onclick=()=>{
 $("copyMsg").onclick=()=>{if(driverBlocked()){toast("This driver is inactive – select an active driver");return}const T=totals(),html=emailHTML(T),txt=message(T);
   const done=()=>toast("Copied – paste into your email"),fail=()=>{const r=document.createRange();r.selectNodeContents($("msg"));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast("Press Ctrl+C to copy")};
   try{navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([txt],{type:"text/plain"})})]).then(done).catch(()=>navigator.clipboard.writeText(txt).then(done).catch(fail))}catch(e){fail()}};
+async function sendMail(sid,subject,html){
+  let ok=false,err="";
+  if(!MAIL_URL){err="Email not connected yet"}
+  else try{
+    const {data}=await sb.auth.getSession();
+    const r=await fetch(MAIL_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:data.session?.access_token,subject,html})});
+    const j=await r.json();ok=!!j.ok;err=j.ok?"":(j.error||"Unknown error");
+  }catch(e){err="Could not reach the email service"}
+  const upd=ok?{email_sent_at:new Date().toISOString(),email_error:null}:{email_error:err};
+  try{await q(sb.from("ts_settlements").update(upd).eq("id",sid),"save email status")}catch(e){}
+  const h=S.history.find(x=>x.id===sid);if(h){if(ok){h.emailSentAt=Date.now();h.emailError=""}else h.emailError=err}
+  return {ok,err};
+}
+const hasRecipients=()=>S.recips.some(r=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((r.contact||"").trim()));
 $("sendBtn").onclick=async()=>{
   if(!S.driver){toast("Select a driver first");return}
   if(driverBlocked()){toast("This driver is inactive – select an active driver");return}
   if(!S.trips.length){toast("Add at least one trip");return}
+  if(MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email under “Email report to”");return}
   const btn=$("sendBtn");if(btn.disabled)return;btn.disabled=true;
   try{
-    const T=totals(),d=drv();
+    const T=totals(),d=drv(),html=emailHTML(T),subject=(S.editingId?"Revised - ":"")+$("subj").value;
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
-      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject:$("subj").value,status:"Pending for Approval"};
+      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,email_sent_at:null,email_error:null,status:"Pending for Approval"};
     let sid;
     if(S.editingId){
       const h=S.history.find(x=>x.id===S.editingId);
@@ -651,8 +672,10 @@ $("sendBtn").onclick=async()=>{
     await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
     const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
     const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
-    if(S.editingId){endEdit();toast("Changes saved and resent for approval (email not connected yet)")}
-    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum();toast("Saved as Pending for Approval (email not connected yet)")}
+    const mail=await sendMail(sid,subject,html);
+    const note=mail.ok?"email sent":`email NOT sent: ${mail.err}`;
+    if(S.editingId){endEdit();toast(`Resent for approval – ${note}`)}
+    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
     tab(false);page("history");
   }catch(e){/* toast already shown */}
   finally{btn.disabled=false}
