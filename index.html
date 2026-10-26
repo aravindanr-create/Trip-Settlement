@@ -290,7 +290,7 @@ img{max-width:100%}
       <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
-      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
     </div>
   </section>
 </div></main>
@@ -340,7 +340,7 @@ img{max-width:100%}
     </section>
     <section class="card">
       <h2>Approval email recipients</h2>
-      <div class="route">The approval email goes to these addresses. Changes save when you leave each box.</div>
+      <div class="route">The approval email goes to everyone in this list (up to 20). Changes save when you leave each box.</div>
       <div id="recips"></div>
     </section>
   </div>
@@ -436,7 +436,8 @@ async function loadAll(){
     q(sb.from("ts_recipients").select("*").order("slot"),"load recipients")]);
   S.drivers=drivers.map(drvFromRow);S.vehicles=vehicles.map(v=>v.vehicle_no);S.history=hist.map(histFromRow);
   const m=settings.find(x=>x.key==="std_mileage");if(m)S.stdMil=+m.value;
-  S.recips=[1,2,3,4].map(n=>{const r=recips.find(x=>x.slot===n);return {name:r?.name||"",contact:r?.email||""}});
+  S.recips=recips.filter(r=>r.name||r.email).sort((a,b)=>a.slot-b.slot).map(r=>({name:r.name||"",contact:r.email||""}));
+  if(!S.recips.length)S.recips=[{name:"",contact:""}];
   if(S.editingId&&!S.history.some(h=>h.id===S.editingId)){S.editingId=null;S.draftBackup=null}
 }
 const $=id=>document.getElementById(id);
@@ -578,7 +579,7 @@ function renderHistory(){
       <td class="num">${inr(h.net)}</td><td class="num">${h.dieselDebit?inr(h.dieselDebit):"-"}</td><td class="num"><b>${inr(finalAmt(h))}</b></td>
       <td><select class="stsel ${cls}" data-hst="${i}" aria-label="Payment status">${STATUSES.map(x=>`<option ${x===h.status?"selected":""}>${x}</option>`).join("")}</select></td>
       <td>${h.emailSentAt?`<span class="pill ok" title="${new Date(h.emailSentAt).toLocaleString("en-IN")}">Sent</span>`:`<span class="pill no" title="${esc(h.emailError||"")}">Not sent</span>`}</td>
-      <td><div class="acts"><button class="lnk" data-hview="${i}">${openH.has(h.id)?"Hide":"View"}</button>${h.status!=="Sent"?`<button class="lnk" data-hedit="${i}">Edit</button>`:""}${!h.emailSentAt&&h.emailHtml?`<button class="lnk" data-hmail="${i}">Send email</button>`:""}<button class="lnk red" data-hrm="${i}">Delete</button></div></td></tr>`;
+      <td><div class="acts"><button class="lnk" data-hprint="${i}">Print</button><button class="lnk" data-hview="${i}">${openH.has(h.id)?"Hide":"View"}</button>${h.status!=="Sent"?`<button class="lnk" data-hedit="${i}">Edit</button>`:""}${!h.emailSentAt&&h.emailHtml?`<button class="lnk" data-hmail="${i}">Send email</button>`:""}<button class="lnk red" data-hrm="${i}">Delete</button></div></td></tr>`;
     const det=openH.has(h.id)?`<tr class="det"><td colspan="10"><div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
       ${h.status!=="Sent"?`<div class="grid" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;max-width:560px">
         <label class="f"><span class="label">Diesel debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
@@ -610,6 +611,10 @@ function bindHistory(){
   box.querySelectorAll("[data-hmail]").forEach(b=>b.onclick=async()=>{const h=S.history[+b.dataset.hmail];
     if(MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email first");return}
     b.disabled=true;b.textContent="Sending…";const m=await sendMail(h.id,h.subject,h.emailHtml);renderHistory();toast(m.ok?"Email sent":`Email not sent: ${m.err}`)});
+  box.querySelectorAll("[data-hprint]").forEach(b=>b.onclick=()=>{const h=S.history[+b.dataset.hprint];
+    if(!h.emailHtml){toast("No saved summary for this settlement");return}
+    const extra=h.dieselDebit?`<p style="font-family:Calibri,Arial,sans-serif;font-size:14px;margin:12px 0 0"><b>Diesel debit at approval:</b> ₹ ${Number(h.dieselDebit).toLocaleString("en-IN",{minimumFractionDigits:2})}${h.debitRem?" ("+esc(h.debitRem)+")":""} &nbsp;|&nbsp; <b>Final payable:</b> ₹ ${finalAmt(h).toLocaleString("en-IN",{minimumFractionDigits:2})} – ${esc(inWords(finalAmt(h)))}</p>`:"";
+    printHTML(h.emailHtml+extra,h.subject)});
   box.querySelectorAll("[data-hedit]").forEach(b=>b.onclick=()=>startEdit(S.history[+b.dataset.hedit].id));
   box.querySelectorAll("[data-hview]").forEach(b=>b.onclick=()=>{const id=S.history[+b.dataset.hview].id;openH.has(id)?openH.delete(id):openH.add(id);renderHistory()});
   box.querySelectorAll("[data-hrm]").forEach(b=>b.onclick=async()=>{
@@ -789,7 +794,7 @@ function emailHTML(T){
 <tr>${td(D(t.veh))}${td(D(t.retFrom))}${td(D(t.retTo))}${td(D(t.retLr))}</tr>`}).join("");
   const Y="background:#fff2cc;font-weight:700;";
   return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;color:#18202c">
-<p style="margin:0 0 10px">Dear Sir/Madam,<br>Please find the trip settlement details below.</p>
+<p style="margin:0 0 10px">Dear Sir,<br>Please find the trip settlement details below.</p>
 <table style="border-collapse:collapse;font-size:13px">
 <tr><td colspan="17" style="${B}background:#ffff00;font-size:17px;font-weight:700;text-align:center">Trip Settlement</td></tr>
 <tr><td colspan="17" style="${B}text-align:right;font-weight:700">Driver Name: ${D(S.driver)} &nbsp;|&nbsp; Veh No: ${D(S.vehicle)} &nbsp;|&nbsp; Date: ${fmtDate(S.sdate)}</td></tr>
@@ -810,13 +815,34 @@ function message(T){
   lines.push(``,`Trip payment: ${inr(T.pay)}`,`Extra amount: ${inr(T.extra)}`,`Advance: ${inr(T.adv)}`,`Excess diesel: ${f2(T.excess)} L`,`TOTAL AMOUNT: ${inr(T.net)}`,`(${inWords(T.net)})`);
   return lines.join("\n");
 }
+function printHTML(html,title){
+  const doc=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title||"Trip Settlement")}</title>
+<style>@page{size:A4 landscape;margin:10mm}body{margin:0;font-family:Calibri,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{page-break-inside:auto}tr{page-break-inside:avoid}</style></head><body>${html}</body></html>`;
+  const f=document.createElement("iframe");f.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";document.body.appendChild(f);
+  f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast("Printing is blocked here")}setTimeout(()=>f.remove(),60000)};
+  f.srcdoc=doc;
+}
+$("printMsg").onclick=()=>{if(!S.driver){toast("Select a driver first");return}printHTML(emailHTML(totals()),$("subj").value)};
 function renderRecipSummary(){const e=S.recips.filter(r=>(r.contact||"").trim());$("recipSummary").innerHTML=e.length?e.map(r=>`${esc(r.name||"")} &lt;${esc(r.contact)}&gt;`).join("<br>"):`<span class="pos">No recipients yet. Add them in Settings.</span>`}
+const MAX_RECIPS=20;
+async function saveRecips(){
+  const rows=S.recips.map(r=>({name:(r.name||"").trim(),email:(r.contact||"").trim()})).filter(r=>r.name||r.email).map((r,i)=>({slot:i+1,name:r.name||null,email:r.email||null}));
+  await q(sb.from("ts_recipients").delete().gte("slot",1),"save recipients");
+  if(rows.length)await q(sb.from("ts_recipients").insert(rows),"save recipients");
+  renderRecipSummary();
+}
 function renderRecips(){
-  $("recips").innerHTML=S.recips.map((r,i)=>`<div class="recip"><span class="n">${i+1}</span>
+  const bad=v=>v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
+  $("recips").innerHTML=S.recips.map((r,i)=>`<div class="recip" style="grid-template-columns:28px minmax(0,1fr) minmax(0,1.4fr) auto"><span class="n">${i+1}</span>
     <input id="rn${i}" placeholder="Name / role" value="${esc(r.name)}" data-r="${i}" data-k="name">
-    <input id="rc${i}" type="email" placeholder="name@aartycarriers.com" value="${esc(r.contact)}" data-r="${i}" data-k="contact"></div>`).join("");
+    <input id="rc${i}" type="email" placeholder="name@aartycarriers.com" value="${esc(r.contact)}" data-r="${i}" data-k="contact" ${bad(r.contact)?'style="border-color:var(--bad)"':""}>
+    <button class="lnk red" data-rdel="${i}" aria-label="Remove recipient ${i+1}">Remove</button></div>`).join("")+
+    `<div class="row" style="margin-top:10px;align-items:center"><button class="obtn" id="rAdd" ${S.recips.length>=MAX_RECIPS?"disabled":""}>+ Add recipient</button><span class="route">${S.recips.filter(r=>(r.contact||"").trim()).length} of up to ${MAX_RECIPS} recipients</span></div>`;
   $("recips").querySelectorAll("input").forEach(el=>{el.oninput=()=>{S.recips[+el.dataset.r][el.dataset.k]=el.value};
-    el.onchange=async()=>{const i=+el.dataset.r,r=S.recips[i];await q(sb.from("ts_recipients").upsert({slot:i+1,name:r.name||null,email:r.contact||null}),"save recipient");renderRecipSummary();toast("Recipient saved")}});
+    el.onchange=async()=>{if(el.dataset.k==="contact"&&bad(el.value)){toast("That email address doesn't look right");el.style.borderColor="var(--bad)";return}
+      el.style.borderColor="";await saveRecips();renderRecips();toast("Recipients saved")}});
+  $("recips").querySelectorAll("[data-rdel]").forEach(b=>b.onclick=async()=>{S.recips.splice(+b.dataset.rdel,1);if(!S.recips.length)S.recips=[{name:"",contact:""}];await saveRecips();renderRecips();toast("Recipient removed")});
+  $("rAdd").onclick=()=>{if(S.recips.length>=MAX_RECIPS)return;S.recips.push({name:"",contact:""});renderRecips();$("rn"+(S.recips.length-1)).focus()};
 }
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>el.hidden=true,2200)}
 function tab(sum){
