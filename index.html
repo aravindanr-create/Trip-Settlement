@@ -340,7 +340,7 @@ img{max-width:100%}
     </section>
     <section class="card">
       <h2>Approval email recipients</h2>
-      <div class="route">The approval email goes to everyone in this list (up to 20). Changes save when you leave each box.</div>
+      <div class="route">Recipient 1 is in <b>To</b>; everyone else is in <b>CC</b> (up to 20 in total). Changes save when you leave each box.</div>
       <div id="recips"></div>
     </section>
   </div>
@@ -823,7 +823,7 @@ function printHTML(html,title){
   f.srcdoc=doc;
 }
 $("printMsg").onclick=()=>{if(!S.driver){toast("Select a driver first");return}printHTML(emailHTML(totals()),$("subj").value)};
-function renderRecipSummary(){const e=S.recips.filter(r=>(r.contact||"").trim());$("recipSummary").innerHTML=e.length?e.map(r=>`${esc(r.name||"")} &lt;${esc(r.contact)}&gt;`).join("<br>"):`<span class="pos">No recipients yet. Add them in Settings.</span>`}
+function renderRecipSummary(){const e=S.recips.filter(r=>(r.contact||"").trim());$("recipSummary").innerHTML=e.length?e.map((r,i)=>`<b>${i===0?"To":"CC"}:</b> ${esc(r.name||"")} &lt;${esc(r.contact)}&gt;`).join("<br>"):`<span class="pos">No recipients yet. Add them in Settings.</span>`}
 const MAX_RECIPS=20;
 async function saveRecips(){
   const rows=S.recips.map(r=>({name:(r.name||"").trim(),email:(r.contact||"").trim()})).filter(r=>r.name||r.email).map((r,i)=>({slot:i+1,name:r.name||null,email:r.email||null}));
@@ -833,7 +833,7 @@ async function saveRecips(){
 }
 function renderRecips(){
   const bad=v=>v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
-  $("recips").innerHTML=S.recips.map((r,i)=>`<div class="recip" style="grid-template-columns:28px minmax(0,1fr) minmax(0,1.4fr) auto"><span class="n">${i+1}</span>
+  $("recips").innerHTML=S.recips.map((r,i)=>`<div class="recip" style="grid-template-columns:34px minmax(0,1fr) minmax(0,1.4fr) auto"><span class="pill ${i===0?"ok":"wait"}" style="text-align:center">${i===0?"To":"CC"}</span>
     <input id="rn${i}" placeholder="Name / role" value="${esc(r.name)}" data-r="${i}" data-k="name">
     <input id="rc${i}" type="email" placeholder="name@aartycarriers.com" value="${esc(r.contact)}" data-r="${i}" data-k="contact" ${bad(r.contact)?'style="border-color:var(--bad)"':""}>
     <button class="lnk red" data-rdel="${i}" aria-label="Remove recipient ${i+1}">Remove</button></div>`).join("")+

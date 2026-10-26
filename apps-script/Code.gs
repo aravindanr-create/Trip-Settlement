@@ -7,8 +7,8 @@
  * Safety:
  *  - Only works for people signed in to the Trip Settlement app
  *    (the script checks their login with Supabase).
- *  - Emails go ONLY to the 4 recipients saved in the app's
- *    "Email report to" list. Any other address sent to it is ignored.
+ *  - Emails go ONLY to the recipients saved in the app's Settings page:
+ *    recipient 1 in "To", all others in "CC". Any other address sent to it is ignored.
  */
 
 const SUPABASE_URL = 'https://kcouuizatvepsebpfxpn.supabase.co';
@@ -41,14 +41,16 @@ function doPost(e) {
     if (!to.length) return reply_({ ok: false, error: 'No recipient emails saved in the app' });
 
     // 3. Send
+    // Recipient 1 goes in "To"; everyone else goes in "CC"
     MailApp.sendEmail({
-      to: to.join(','),
+      to: to[0],
+      cc: to.slice(1).join(','),
       subject: String(body.subject || 'Trip Settlement').slice(0, 250),
       htmlBody: String(body.html || ''),
       name: SENDER_NAME,
       replyTo: user.email
     });
-    return reply_({ ok: true, sentTo: to, quotaLeft: MailApp.getRemainingDailyQuota() });
+    return reply_({ ok: true, to: to[0], cc: to.slice(1), quotaLeft: MailApp.getRemainingDailyQuota() });
   } catch (err) {
     return reply_({ ok: false, error: String(err && err.message || err) });
   }
