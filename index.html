@@ -276,7 +276,7 @@ img{max-width:100%}
       <div class="tile"><div class="label">Advance paid</div><div class="v" id="tAdv"></div></div>
       <div class="tile"><div class="label">Excess diesel</div><div class="v" id="tExcess"></div></div>
     </div>
-    <div class="net"><div><div class="label">Total amount payable</div><div class="formula">Trip payment + Extra − Advance</div></div><div class="v" id="tNet"></div><div id="tWords" style="flex-basis:100%;font-weight:600;font-size:.92rem;border-top:1px dashed var(--accent);padding-top:8px"></div></div>
+    <div class="net"><div><div class="label">Total amount payable</div></div><div class="v" id="tNet"></div><div id="tWords" style="flex-basis:100%;font-weight:600;font-size:.92rem;border-top:1px dashed var(--accent);padding-top:8px"></div></div>
 
     <div class="card"><h2>Trips</h2><div class="sum-list" id="sumList"></div></div>
 
@@ -784,24 +784,24 @@ function emailHTML(T){
   const th=x=>`<th style="${B}background:#e8edf3;font-weight:700;text-align:center;white-space:nowrap">${x}</th>`;
   const td=(x,al="left",extra="")=>`<td style="${B}text-align:${al};white-space:nowrap;${extra}">${x}</td>`;
   const n=x=>Number(x||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const cols=["Date","Vehicle No","From","To","LR No","Trip Payment","Extra Amount","Extra Amount Remarks","Advance","Starting Km","Closing Km","Running Km","Used Diesel","Mileage (as per filled diesel)","Udd Actual Diesel","Excess Diesel","Remarks"];
+  const cols=["Date","Vehicle No","From","To","LR No","Trip Payment","Extra Amount","Extra Amount Remarks","Advance","Running Km","Used Diesel","Mileage (as per filled diesel)","Udd Actual Diesel","Excess Diesel","Remarks"];
   const has=v=>!(v===undefined||v===null||v===0||String(v).trim()==="");
   const D=v=>has(v)?esc(v):"-";
   const money=v=>has(v)?"₹ "+n(v):"-";
   const tdr=(x,al="left",extra="")=>`<td rowspan="2" style="${B}text-align:${al};vertical-align:middle;white-space:nowrap;${extra}">${x}</td>`;
   const rows=S.trips.map(t=>{const c=calc(t),ok=t.km>0&&t.used>0;
-    return `<tr>${tdr(fmtDate(t.date))}${td(D(t.veh))}${td(D(t.from))}${td(D(t.to))}${td(D(t.lr))}${tdr(money(t.pay),"right")}${tdr(money(t.extra),"right")}${tdr(D(t.extraRem))}${tdr(money(t.adv),"right")}${tdr(D(t.startKm),"right")}${tdr(D(t.closeKm),"right")}${tdr(D(t.km),"right")}${tdr(t.used>0?f2(t.used):"-","right")}${tdr(ok?c.mileage.toFixed(1):"-","right")}${tdr(t.km>0?f2(c.allowed):"-","right")}${tdr(ok?f2(c.excess):"-","right",ok&&c.excess>0?"color:#b4322a;font-weight:700":"")}${tdr(D(t.rem))}</tr>
+    return `<tr>${tdr(fmtDate(t.date))}${td(D(t.veh))}${td(D(t.from))}${td(D(t.to))}${td(D(t.lr))}${tdr(money(t.pay),"right")}${tdr(money(t.extra),"right")}${tdr(D(t.extraRem))}${tdr(money(t.adv),"right")}${tdr(D(t.km),"right")}${tdr(t.used>0?f2(t.used):"-","right")}${tdr(ok?c.mileage.toFixed(1):"-","right")}${tdr(t.km>0?f2(c.allowed):"-","right")}${tdr(ok?f2(c.excess):"-","right",ok&&c.excess>0?"color:#b4322a;font-weight:700":"")}${tdr(D(t.rem))}</tr>
 <tr>${td(D(t.veh))}${td(D(t.retFrom))}${td(D(t.retTo))}${td(D(t.retLr))}</tr>`}).join("");
   const Y="background:#fff2cc;font-weight:700;";
   return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;color:#18202c">
 <p style="margin:0 0 10px">Dear Sir,<br>Please find the trip settlement details below.</p>
 <table style="border-collapse:collapse;font-size:13px">
-<tr><td colspan="17" style="${B}background:#ffff00;font-size:17px;font-weight:700;text-align:center">Trip Settlement</td></tr>
-<tr><td colspan="17" style="${B}text-align:right;font-weight:700">Driver Name: ${D(S.driver)} &nbsp;|&nbsp; Veh No: ${D(S.vehicle)} &nbsp;|&nbsp; Date: ${fmtDate(S.sdate)}</td></tr>
+<tr><td colspan="15" style="${B}background:#ffff00;font-size:17px;font-weight:700;text-align:center">Trip Settlement</td></tr>
+<tr><td colspan="15" style="${B}text-align:right;font-weight:700">Driver Name: ${D(S.driver)} &nbsp;|&nbsp; Veh No: ${D(S.vehicle)} &nbsp;|&nbsp; Date: ${fmtDate(S.sdate)}</td></tr>
 <tr>${cols.map(th).join("")}</tr>${rows}
-<tr><td colspan="5" style="${B}${Y}text-align:center">TOTAL</td>${td("₹ "+n(T.pay),"right",Y)}${td("₹ "+n(T.extra),"right",Y)}${td("","left",Y)}${td("₹ "+n(T.adv),"right",Y)}${td("","left",Y)}${td("","left",Y)}${td(T.km,"right",Y)}${td(f2(T.used),"right",Y)}${td("","left",Y)}${td(f2(T.allowed),"right",Y)}${td(f2(T.excess),"right",Y)}${td("","left",Y)}</tr>
-<tr><td colspan="5" style="${B}font-weight:700;text-align:center;font-size:15px">TOTAL AMOUNT</td><td colspan="4" style="${B}font-weight:700;font-size:15px">₹ ${n(T.net)} &nbsp;<span style="font-weight:400;font-size:12px;color:#5f6b7a">(Trip Payment + Extra − Advance)</span></td><td colspan="8" style="${B}"></td></tr>
-<tr><td colspan="5" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="12" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
+<tr><td colspan="5" style="${B}${Y}text-align:center">TOTAL</td>${td("₹ "+n(T.pay),"right",Y)}${td("₹ "+n(T.extra),"right",Y)}${td("","left",Y)}${td("₹ "+n(T.adv),"right",Y)}${td(T.km,"right",Y)}${td(f2(T.used),"right",Y)}${td("","left",Y)}${td(f2(T.allowed),"right",Y)}${td(f2(T.excess),"right",Y)}${td("","left",Y)}</tr>
+<tr><td colspan="5" style="${B}font-weight:700;text-align:center;font-size:15px">TOTAL AMOUNT</td><td colspan="4" style="${B}font-weight:700;font-size:15px">₹ ${n(T.net)}</td><td colspan="6" style="${B}"></td></tr>
+<tr><td colspan="5" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="10" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
 </table>
 <p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>
 <table style="border-collapse:collapse;font-size:13px">
