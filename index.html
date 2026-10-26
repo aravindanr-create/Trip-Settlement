@@ -254,6 +254,11 @@ img{max-width:100%}
     <div class="tile"><div class="label">Avg mileage</div><div class="v" id="dbMil"></div></div>
   </div>
   <section class="card">
+    <h2 style="margin-bottom:2px">Avg mileage by vehicle</h2>
+    <div class="route" style="margin-bottom:8px">km per litre of diesel used. Dashed line = standard mileage. Tap a bar for details.</div>
+    <div class="tblwrap" style="border:0"><div id="milChart"></div></div>
+  </section>
+  <section class="card">
     <h2>Vehicle-wise</h2>
     <div class="tblwrap"><table class="dtbl" id="vTbl"></table></div>
   </section>
@@ -492,10 +497,34 @@ function table(id,rows,sort,setSort,first,extra){
   $(id).querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;setSort(sort.k===k?{k,d:-sort.d}:{k,d:k==="name"||k==="status"?1:-1});renderDash()});
 }
 const dStatus=n=>{const d=S.drivers.find(x=>x.name===n);return d?(d.status||"Active"):"Removed"};
+function renderMilChart(all){
+  const g=new Map(group(all,"veh").map(r=>[r.name,r]));
+  const names=[...S.vehicles,...[...g.keys()].filter(k=>!S.vehicles.includes(k)&&k!=="(not set)")];
+  const data=names.map(n=>({name:n,v:g.get(n)?.mil||0,r:g.get(n)}));
+  if(!data.length){$("milChart").innerHTML=`<div class="route">No vehicles yet.</div>`;return}
+  const band=88,ml=44,mr=12,mt=28,mb=44,ih=220,W=Math.max(560,ml+mr+band*data.length),H=mt+ih+mb;
+  const top=Math.max(...data.map(d=>d.v),S.stdMil||0,1);
+  const step=top>6?2:1,yMax=Math.ceil(top*1.12/step)*step;
+  const y=v=>mt+ih-(v/yMax)*ih;
+  let o=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Average mileage by vehicle" style="max-width:none;display:block;font-family:var(--body)">`;
+  for(let t=0;t<=yMax+1e-9;t+=step){o+=`<line x1="${ml}" x2="${W-mr}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/><text x="${ml-8}" y="${y(t)+4}" text-anchor="end" font-size="11" fill="var(--muted)" style="font-family:var(--mono)">${t.toFixed(1)}</text>`}
+  data.forEach((d,i)=>{const cx=ml+band*i+band/2,bw=band*0.46,x=cx-bw/2;
+    if(d.v>0){const yt=y(d.v),h=mt+ih-yt,r=Math.min(4,h);
+      o+=`<g><title>${esc(d.name)}: ${d.v.toFixed(2)} km/L · ${d.r.trips} trip${d.r.trips===1?"":"s"} · ${Math.round(d.r.km).toLocaleString("en-IN")} km · ${f2(d.r.used)} L</title>
+        <rect x="${cx-band/2+2}" y="${mt}" width="${band-4}" height="${ih}" fill="transparent"/>
+        <path d="M${x},${mt+ih}V${yt+r}Q${x},${yt} ${x+r},${yt}H${x+bw-r}Q${x+bw},${yt} ${x+bw},${yt+r}V${mt+ih}Z" fill="#2f5d8a"/>
+        <text x="${cx}" y="${yt-7}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)" style="font-family:var(--mono)">${d.v.toFixed(2)}</text></g>`}
+    else o+=`<text x="${cx}" y="${mt+ih-8}" text-anchor="middle" font-size="11" fill="var(--muted)">No trips</text>`;
+    o+=`<text x="${cx}" y="${mt+ih+20}" text-anchor="middle" font-size="11.5" fill="var(--ink)">${esc(d.name)}</text>`});
+  o+=`<line x1="${ml}" x2="${W-mr}" y1="${mt+ih}" y2="${mt+ih}" stroke="var(--muted)" stroke-width="1"/>`;
+  if(S.stdMil>0){const ys=y(S.stdMil);o+=`<line x1="${ml}" x2="${W-mr}" y1="${ys}" y2="${ys}" stroke="#b4322a" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-mr}" y="${ys-6}" text-anchor="end" font-size="11" font-weight="600" fill="#b4322a">Std ${(+S.stdMil).toFixed(1)} km/L</text>`}
+  $("milChart").innerHTML=o+`</svg>`;
+}
 function renderDash(){
   const all=dashTrips();
   const T={trips:all.length,km:0,used:0};all.forEach(t=>{T.km+=t.km||0;T.used+=t.used||0});
   $("dbTrips").textContent=T.trips;$("dbKm").textContent=fmtM.km(T.km)+" km";$("dbAvgD").textContent=T.trips?f2(T.used/T.trips)+" L":"-";$("dbMil").textContent=T.used>0?(T.km/T.used).toFixed(2)+" km/L":"-";
+  renderMilChart(all);
   table("vTbl",group(all,"veh"),vSort,x=>vSort=x,"Vehicle",false);
   const ds=$("dbDStatus").value;
   const dr=group(all,"driver").map(r=>({...r,status:dStatus(r.name)})).filter(r=>!ds||r.status===ds);
