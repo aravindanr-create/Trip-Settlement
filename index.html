@@ -154,6 +154,8 @@ body::before{background:#fff}
 .phead .sub{color:var(--muted);font-size:.85rem;margin-top:2px}
 .pg>.wrap{max-width:none;margin:0;padding-block:20px 48px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
 .pg>.wrap.narrow{max-width:1000px}
+#pageSettle>.phead{position:sticky;top:0;z-index:15}
+@media(max-width:900px){#pageSettle>.phead{top:calc(env(safe-area-inset-top,0px) + 49px)}}
 .obtn{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--link);color:var(--link);border-radius:6px;padding:6px 12px;font:500 .88rem var(--body);cursor:pointer;white-space:nowrap}
 .obtn.grey{border-color:#9aa4b1;color:var(--ink)}
 .obtn:hover{background:#f1f6ff}.obtn.grey:hover{background:#f3f5f8}
@@ -241,7 +243,7 @@ img{max-width:100%}
 <div class="mainarea">
 <div class="mbar"><button id="menuBtn" aria-label="Open menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><b>UDDHAVA</b></div>
 
-<main class="pg" id="pageSettle" hidden><div class="phead"><div><h1>New Settlement</h1></div><div class="toolbar"><button class="obtn grey" id="goHistory">View settlements</button></div></div><div class="wrap narrow">
+<main class="pg" id="pageSettle" hidden><div class="phead"><div><h1>New Settlement</h1></div><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button><button class="obtn grey" id="goHistory">View settlements</button><button class="obtn" id="hdrSave">Save (no email)</button><button class="obtn" id="hdrSend" style="background:var(--accent);border-color:var(--accent);color:var(--accent-ink)">Save &amp; send</button></div></div><div class="wrap narrow">
   <section class="card">
     <div class="grid g4">
       <label class="f span2"><span class="label">Driver name</span><select id="driver"></select></label>
@@ -290,13 +292,13 @@ img{max-width:100%}
       <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
-      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn dark" id="saveOnly" hidden>Save changes only (no email)</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn dark" id="saveOnly">Save (no email)</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
     </div>
   </section>
 </div></main>
 
 <main class="pg" id="pageDrivers" hidden>
-  <div class="phead"><h1>Drivers</h1><div class="toolbar"><button class="obtn" id="dAdd">+ Add</button></div></div>
+  <div class="phead"><h1>Drivers</h1><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button><button class="obtn" id="dAdd">+ Add</button></div></div>
   <div class="wrap">
     <section class="card" id="dForm" hidden>
       <h2 id="dFormTitle">Add driver</h2>
@@ -319,7 +321,7 @@ img{max-width:100%}
   </div>
 </main>
 <main class="pg" id="pageVehicles" hidden>
-  <div class="phead"><h1>Vehicles</h1><div class="toolbar"><button class="obtn" id="vAddBtn">+ Add</button></div></div>
+  <div class="phead"><h1>Vehicles</h1><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button><button class="obtn" id="vAddBtn">+ Add</button></div></div>
   <div class="wrap">
     <section class="card" id="vForm" hidden>
       <h2>Add vehicle</h2>
@@ -331,7 +333,7 @@ img{max-width:100%}
   </div>
 </main>
 <main class="pg" id="pageSettings" hidden>
-  <div class="phead"><h1>Settings</h1></div>
+  <div class="phead"><h1>Settings</h1><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button></div></div>
   <div class="wrap narrow">
     <section class="card">
       <h2>Standard mileage</h2>
@@ -346,7 +348,7 @@ img{max-width:100%}
   </div>
 </main>
 <main class="pg" id="pageHistory" hidden>
-  <div class="phead"><h1>Settlements</h1><div class="toolbar"><button class="obtn" id="hAdd">+ Add</button></div></div>
+  <div class="phead"><h1>Settlements</h1><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button><button class="obtn" id="hAdd">+ Add</button></div></div>
   <div class="wrap">
     <div class="toolbar">
       <label class="tsearch"><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="hSearch" placeholder="Search driver, vehicle, LR"></label>
@@ -364,7 +366,7 @@ img{max-width:100%}
     <div class="lwrap"><div class="lscroll"><table class="ltbl" id="hTbl"></table></div><div class="pager" id="hPager"></div></div>
   </div>
 </main>
-<main class="pg" id="pageDash" hidden><div class="phead"><div><h1>Dashboard</h1><div class=sub>Trips, running km and diesel by vehicle and driver</div></div><div class="toolbar"></div></div><div class="wrap">
+<main class="pg" id="pageDash" hidden><div class="phead"><div><h1>Dashboard</h1><div class=sub>Trips, running km and diesel by vehicle and driver</div></div><div class="toolbar"><button class="obtn grey" data-refresh title="Reload the latest data">↻ Refresh</button></div></div><div class="wrap">
   <section class="card">
     <div class="grid g4">
       <label class="f"><span class="label">Trip date from</span><input type="date" id="dbFrom"></label>
@@ -537,6 +539,7 @@ $("dSave").onclick=async()=>{
 const PAGES={settle:"pageSettle",history:"pageHistory",dash:"pageDash",drivers:"pageDrivers",vehicles:"pageVehicles",settings:"pageSettings"};
 function page(x){
   const name=x===true?"drivers":x===false?"settle":x;
+  curPage=name;
   for(const [k,pg] of Object.entries(PAGES))$(pg).hidden=k!==name;
   document.querySelectorAll(".sitems a").forEach(a=>{const on=a.dataset.pg===name;a.classList.toggle("on",on);if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
   if(name==="drivers")renderDrivers();
@@ -631,7 +634,7 @@ function refreshSettle(){fillDriverSelect();fillVehSelect();$("vehicle").value=S
 function renderEditBanner(){
   const h=S.editingId&&(S.history||[]).find(x=>x.id===S.editingId);
   $("editBanner").hidden=!h;
-  $("sendBtn").textContent=h?"Resend for approval & email":"Send for approval & email";$("saveOnly").hidden=!h;
+  $("sendBtn").textContent=h?"Resend for approval & email":"Send for approval & email";$("saveOnly").textContent=h?"Save changes only (no email)":"Save (no email)";$("hdrSave").textContent=h?"Save changes":"Save (no email)";$("hdrSend").textContent=h?"Save & resend":"Save & send";
   if(h)$("editText").innerHTML=`<b>Editing:</b> ${esc(h.driver)} · settlement ${fmtDate(h.sdate)}. Make your changes, then on the Summary tab press <b>Save changes only</b> (no email) or <b>Resend for approval &amp; email</b>. Until then, changes are not saved.`;
 }
 function startEdit(id){
@@ -898,7 +901,7 @@ async function saveSettlement(withEmail){
   if(driverBlocked()){toast("This driver is inactive – select an active driver");return}
   if(!S.trips.length){toast("Add at least one trip");return}
   if(withEmail&&MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email in Settings");return}
-  const btn=$(withEmail?"sendBtn":"saveOnly");if(btn.disabled)return;btn.disabled=true;
+  const btn=$(withEmail?"sendBtn":"saveOnly");if(btn.disabled)return;btn.disabled=true;$("hdrSave").disabled=$("hdrSend").disabled=true;
   try{
     const T=totals(),d=drv(),html=emailHTML(T),subject=(S.editingId?"Revised - ":"")+$("subj").value;
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
@@ -916,17 +919,28 @@ async function saveSettlement(withEmail){
     await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
     const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
     const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
-    if(!withEmail){endEdit();toast("Changes saved – no email sent");tab(false);page("history");return}
+    if(!withEmail){if(S.editingId)endEdit();else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum()}
+      toast("Saved – no email sent. Use Send email on Settlements when ready.");tab(false);page("history");return}
     const mail=await sendMail(sid,subject,html);
     const note=mail.ok?"email sent":`email NOT sent: ${mail.err}`;
     if(S.editingId){endEdit();toast(`Resent for approval – ${note}`)}
     else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
     tab(false);page("history");
   }catch(e){/* toast already shown */}
-  finally{btn.disabled=false}
+  finally{btn.disabled=false;$("hdrSave").disabled=$("hdrSend").disabled=false}
 }
 $("sendBtn").onclick=()=>saveSettlement(true);
 $("saveOnly").onclick=()=>saveSettlement(false);
+$("hdrSave").onclick=()=>saveSettlement(false);$("hdrSend").onclick=()=>saveSettlement(true);
+let curPage="dash";
+async function refreshData(btn){
+  if(btn){btn.disabled=true;btn.textContent="↻ Refreshing…"}
+  try{await loadAll();fillDriverSelect();fillVehSelect();renderBank();renderTrips();renderSum();renderRecipSummary();renderEditBanner();
+    const y=window.scrollY;page(curPage);window.scrollTo(0,y);toast("Data refreshed")}
+  catch(e){/* toast already shown */}
+  finally{if(btn){btn.disabled=false;btn.textContent="↻ Refresh"}}
+}
+document.querySelectorAll("[data-refresh]").forEach(b=>b.onclick=()=>refreshData(b));
 
 function showApp(on){$("pageLogin").hidden=on;$("loginTop").hidden=on;$("shell").hidden=!on}
 async function showUser(){const {data}=await sb.auth.getUser();const m=data?.user?.email||"";$("uMail").textContent=m;const nm=m.split("@")[0].replace(/[._]/g," ").replace(/\b\w/g,c=>c.toUpperCase());$("uName").textContent=nm||"Signed in";$("uAv").textContent=(nm[0]||"U").toUpperCase()}
