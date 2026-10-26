@@ -613,8 +613,13 @@ function bindHistory(){
     b.disabled=true;b.textContent="Sending…";const m=await sendMail(h.id,h.subject,h.emailHtml);renderHistory();toast(m.ok?"Email sent":`Email not sent: ${m.err}`)});
   box.querySelectorAll("[data-hprint]").forEach(b=>b.onclick=()=>{const h=S.history[+b.dataset.hprint];
     if(!h.emailHtml){toast("No saved summary for this settlement");return}
-    const extra=h.dieselDebit?`<p style="font-family:Calibri,Arial,sans-serif;font-size:14px;margin:12px 0 0"><b>Diesel debit at approval:</b> ₹ ${Number(h.dieselDebit).toLocaleString("en-IN",{minimumFractionDigits:2})}${h.debitRem?" ("+esc(h.debitRem)+")":""} &nbsp;|&nbsp; <b>Final payable:</b> ₹ ${finalAmt(h).toLocaleString("en-IN",{minimumFractionDigits:2})} – ${esc(inWords(finalAmt(h)))}</p>`:"";
-    printHTML(h.emailHtml+extra,h.subject)});
+    const blk=summaryBlock(totalsOf(h.trips),h.dieselDebit||0,h.debitRem||"");
+    const RE=/<!--TS-SUM-->[\s\S]*<!--\/TS-SUM-->/,BANK='<p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>';
+    let html=h.emailHtml;
+    if(RE.test(html))html=html.replace(RE,()=>blk);            // newer emails: swap in the up-to-date totals
+    else if(html.includes(BANK))html=html.replace(BANK,()=>blk+BANK); // older emails: insert before bank details
+    else html+=blk;
+    printHTML(html,h.subject)});
   box.querySelectorAll("[data-hedit]").forEach(b=>b.onclick=()=>startEdit(S.history[+b.dataset.hedit].id));
   box.querySelectorAll("[data-hview]").forEach(b=>b.onclick=()=>{const id=S.history[+b.dataset.hview].id;openH.has(id)?openH.delete(id):openH.add(id);renderHistory()});
   box.querySelectorAll("[data-hrm]").forEach(b=>b.onclick=async()=>{
@@ -749,9 +754,10 @@ function renderTrips(full=true){
       <span class="chip ${c.excess>0?"bad":"good"}"><b>Excess</b>${f2(c.excess)} L</span>`;
   });
 }
-function totals(){
+function totals(){return totalsOf(S.trips)}
+function totalsOf(trips){
   const T={pay:0,extra:0,adv:0,used:0,km:0,allowed:0,excess:0};
-  S.trips.forEach(t=>{const c=calc(t);T.pay+=t.pay;T.extra+=t.extra;T.adv+=t.adv;T.used+=t.used;T.km+=t.km;T.allowed+=c.allowed;T.excess+=c.excess});
+  trips.forEach(t=>{const c=calc(t);T.pay+=t.pay;T.extra+=t.extra;T.adv+=t.adv;T.used+=t.used;T.km+=t.km;T.allowed+=c.allowed;T.excess+=c.excess});
   T.net=T.pay+T.extra-T.adv; return T;
 }
 function renderSum(){
@@ -778,6 +784,19 @@ function inWords(amt){
   const neg=amt<0;amt=Math.abs(Math.round((amt||0)*100));const r=Math.floor(amt/100),p=amt%100;
   return (neg?"Minus ":"")+"Rupees "+conv(r)+(p?" and "+two(p)+" Paise":"")+" Only";
 }
+function summaryBlock(T,debit,debitRem){
+  const n=x=>Number(x||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const li=(k,v,b)=>`<li style="margin:3px 0">${b?"<b>":""}${k}: ${v}${b?"</b>":""}</li>`;
+  const finalNet=T.net-(debit||0);
+  return `<!--TS-SUM--><p style="margin:16px 0 6px;font-weight:700">Totals &amp; Payment Summary</p>
+<ul style="margin:0;padding-left:22px;line-height:1.5">
+${li("Total Trip Payment","₹ "+n(T.pay))}${li("Total Extra Amount","₹ "+n(T.extra))}${li("Total Advance","₹ "+n(T.adv))}
+${li("Total Running Km",Math.round(T.km).toLocaleString("en-IN")+" km")}
+${li("Total Diesel Used",n(T.used)+" L &nbsp;|&nbsp; Total Udd Actual Diesel: "+n(T.allowed)+" L")}
+${debit?li("Diesel Debit","₹ "+n(debit)+(debitRem?` (${String(debitRem).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))})`:"")):""}
+<li style="margin:6px 0 3px;font-size:15px"><b>Net Payable Amount: ₹ ${n(finalNet)}</b>${debit?` <span style="color:#5f6b7a">(₹ ${n(T.net)} − ₹ ${n(debit)} diesel debit)</span>`:""}<br><b>${inWords(finalNet)}</b></li>
+</ul><!--/TS-SUM-->`;
+}
 function emailHTML(T){
   const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const B="border:1px solid #9aa4b1;padding:5px 8px;";
@@ -803,6 +822,7 @@ function emailHTML(T){
 <tr><td colspan="5" style="${B}font-weight:700;text-align:center;font-size:15px">TOTAL AMOUNT</td><td colspan="4" style="${B}font-weight:700;font-size:15px">₹ ${n(T.net)}</td><td colspan="6" style="${B}"></td></tr>
 <tr><td colspan="5" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="10" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
 </table>
+${(h=>summaryBlock(T,h?.dieselDebit||0,h?.debitRem||""))(S.editingId&&(S.history||[]).find(x=>x.id===S.editingId))}
 <p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>
 <table style="border-collapse:collapse;font-size:13px">
 ${(d=>[["Account Holder Name",d.accHolder],["Account Number",d.accNo],["IFSC Code",(d.ifsc||"").toUpperCase()],["Bank Name",d.bank],["Branch",d.branch]])(drv()).map(([k,v])=>`<tr><td style="${B}background:#e8edf3;font-weight:700;white-space:nowrap">${k}</td><td style="${B}min-width:200px">${D(v)}</td></tr>`).join("")}
