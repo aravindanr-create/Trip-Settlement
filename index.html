@@ -122,6 +122,8 @@ h2{font-family:var(--display);font-size:1.3rem;margin:0 0 8px;letter-spacing:.02
 .hbar .avgm{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--ink);opacity:.55}
 .hbar .vl{font-family:var(--mono);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 .hbar.none .vl{font-family:var(--body);font-weight:400;color:var(--muted)}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .modalbg{position:fixed;inset:0;background:rgba(15,20,27,.45);z-index:50;display:grid;place-items:center;padding:16px}
 .modal{background:#fff;border-radius:10px;padding:18px;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
 .tag.on{background:var(--good-soft);color:var(--good)}.tag.off{background:var(--bad-soft);color:var(--bad)}
@@ -414,11 +416,11 @@ img{max-width:100%}
 </div></div>
 <div class="modalbg" id="debitModal" hidden role="dialog" aria-modal="true" aria-labelledby="dmTitle">
   <div class="modal">
-    <h2 id="dmTitle" style="margin:0 0 4px">Diesel debit before sending</h2>
+    <h2 id="dmTitle" style="margin:0 0 4px">Debit before sending</h2>
     <div class="route" id="dmInfo" style="margin-bottom:12px"></div>
     <div class="grid">
-      <label class="f"><span class="label">Diesel debit amount ₹</span><input id="dmAmt" class="num" type="number" min="0" step="any" placeholder="0"></label>
-      <label class="f"><span class="label">Debit remarks</span><input id="dmRem" placeholder="e.g. 12 L excess diesel"></label>
+      <label class="f"><span class="label">Debit amount ₹</span><input id="dmAmt" class="num" type="number" min="0" step="any" placeholder="0"></label>
+      <label class="f"><span class="label">Debit remarks</span><input id="dmRem" placeholder="e.g. Diesel excess / Damage / Fine"></label>
     </div>
     <div class="net" style="margin-top:12px;padding:12px"><div class="label">Net payable</div><div class="v" id="dmNet" style="font-size:1.2rem"></div><div id="dmWords" style="flex-basis:100%;font-size:.85rem;font-weight:600"></div></div>
     <div id="dmErr" class="warn" hidden style="background:var(--bad-soft);color:var(--bad);margin-top:10px"></div>
@@ -602,7 +604,7 @@ function renderHistory(){
   const list=hFiltered(),pages=Math.max(1,Math.ceil(list.length/hPer));hPage=Math.min(hPage,pages);
   const sum=a=>a.reduce((x,{h})=>x+finalAmt(h),0),pend=list.filter(({h})=>h.status!=="Sent"),sent=list.filter(({h})=>h.status==="Sent");
   $("hFound").innerHTML=`${list.length} settlement${list.length===1?"":"s"} found${list.length?` · Pending ${inr(sum(pend))} · Sent ${inr(sum(sent))}`:""}`;
-  const head=`<thead><tr><th>Settlement date</th><th>Driver</th><th>Vehicle</th><th class="num">Trips</th><th class="num">Total</th><th class="num">Diesel debit</th><th class="num">Final payable</th><th>Payment status</th><th>Email</th><th>Actions</th></tr></thead>`;
+  const head=`<thead><tr><th>Settlement date</th><th>Driver</th><th>Vehicle</th><th class="num">Trips</th><th class="num">Total</th><th class="num">Debit</th><th class="num">Final payable</th><th>Payment status</th><th>Email</th><th>Actions</th></tr></thead>`;
   if(!list.length){$("hTbl").innerHTML=head+`<tbody><tr class="empty"><td colspan="10">${H.length?"No settlements match these filters.":"No settlements yet. Press + Add to create the first one."}</td></tr></tbody>`;$("hPager").innerHTML="";bindHistory();return}
   const slice=list.slice((hPage-1)*hPer,hPage*hPer);
   $("hTbl").innerHTML=head+`<tbody>`+slice.map(({h,i})=>{const cls=h.status==="Sent"?"sent":"pend";
@@ -613,10 +615,10 @@ function renderHistory(){
       <td><div class="acts"><button class="lnk" data-hprint="${i}">Print</button><button class="lnk" data-hview="${i}">${openH.has(h.id)?"Hide":"View"}</button>${h.status!=="Sent"?`<button class="lnk" data-hedit="${i}">Edit</button>`:""}${h.emailHtml?`<button class="lnk" data-hmail="${i}">${h.emailSentAt?"Resend email":"Send email"}</button>`:""}<button class="lnk red" data-hrm="${i}">Delete</button></div></td></tr>`;
     const det=openH.has(h.id)?`<tr class="det"><td colspan="10"><div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
       ${h.status!=="Sent"?`<div class="grid" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;max-width:560px">
-        <label class="f"><span class="label">Diesel debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
-        <label class="f"><span class="label">Debit remarks</span><input id="hdr${h.id}" data-hdr="${i}" value="${esc(h.debitRem||"")}" placeholder="e.g. 12 L excess"></label></div>`:(h.dieselDebit?`<div class="hmeta">Diesel debit ${inr(h.dieselDebit)}${h.debitRem?" · "+esc(h.debitRem):""}</div>`:"")}
+        <label class="f"><span class="label">Debit ₹ (at approval)</span><input class="num" type="number" min="0" step="any" id="hdd${h.id}" data-hdd="${i}" value="${h.dieselDebit||""}" placeholder="0"></label>
+        <label class="f"><span class="label">Debit remarks</span><input id="hdr${h.id}" data-hdr="${i}" value="${esc(h.debitRem||"")}" placeholder="e.g. Diesel excess / Damage / Fine"></label></div>`:(h.dieselDebit?`<div class="hmeta">Debit ${inr(h.dieselDebit)}${h.debitRem?" · "+esc(h.debitRem):""}</div>`:"")}
       <div class="sum-list">${h.trips.map(t=>`<div class="sum-item"><div class="d">${fmtDate(t.date)} · ${esc(t.veh||"-")} · LR ${esc(t.lr||"-")}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div><div class="m">${esc(t.from||"-")} → ${esc(t.to||"-")}${t.retFrom||t.retTo?` · Return ${esc(t.retFrom||"-")} → ${esc(t.retTo||"-")} (LR ${esc(t.retLr||"-")})`:""} · ${t.km||0} km · ${f2(t.used||0)} L used</div><div></div></div>`).join("")}</div>
-      <div class="hmeta">Total ${inr(h.net)}${h.dieselDebit?` − Diesel debit ${inr(h.dieselDebit)} = <b>${inr(finalAmt(h))}</b>`:""} · <b>${esc(inWords(finalAmt(h)))}</b></div>
+      <div class="hmeta">Total ${inr(h.net)}${h.dieselDebit?` − Debit ${inr(h.dieselDebit)} = <b>${inr(finalAmt(h))}</b>`:""} · <b>${esc(inWords(finalAmt(h)))}</b></div>
       <div class="hmeta">Bank: ${esc(h.bank.accHolder||"-")} · ${esc(h.bank.accNo||"-")} · ${esc((h.bank.ifsc||"-").toUpperCase())}</div>
       <div class="hmeta">${h.emailSentAt?`Email sent ${new Date(h.emailSentAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:`Email not sent${h.emailError?" – "+esc(h.emailError):""}`} · Saved ${new Date(h.savedAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}${h.resentAt?` · resent ${new Date(h.resentAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:""}${h.statusAt?` · status changed ${new Date(h.statusAt).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}`:""}</div>
     </div></td></tr>`:"";
@@ -634,9 +636,9 @@ function bindHistory(){
     try{await q(sb.from("ts_settlements").update({status:el.value,status_at:at.toISOString()}).eq("id",h.id),"update status")}catch(e){renderHistory();return}
     h.status=el.value;h.statusAt=at.getTime();renderHistory();toast(`Marked as ${el.value}`)});
   box.querySelectorAll("[data-hdd]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hdd];const v=Math.max(0,parseFloat(el.value)||0);
-    if(v>h.net){toast("Diesel debit can't be more than the total amount");el.value=h.dieselDebit||"";return}
-    const at=new Date();await q(sb.from("ts_settlements").update({diesel_debit:v,debit_at:at.toISOString()}).eq("id",h.id),"save diesel debit");
-    h.dieselDebit=v;h.debitAt=at.getTime();renderHistory();toast(v?`Diesel debit ${inr(v)} applied`:"Diesel debit removed")});
+    if(v>h.net){toast("Debit can't be more than the total amount");el.value=h.dieselDebit||"";return}
+    const at=new Date();await q(sb.from("ts_settlements").update({diesel_debit:v,debit_at:at.toISOString()}).eq("id",h.id),"save debit");
+    h.dieselDebit=v;h.debitAt=at.getTime();renderHistory();toast(v?`Debit ${inr(v)} applied`:"Debit removed")});
   box.querySelectorAll("[data-hdr]").forEach(el=>el.onchange=async()=>{const h=S.history[+el.dataset.hdr],v=el.value.trim();
     await q(sb.from("ts_settlements").update({debit_remarks:v||null}).eq("id",h.id),"save debit remarks");h.debitRem=v;toast("Remarks saved")});
   box.querySelectorAll("[data-hmail]").forEach(b=>b.onclick=async()=>{const h=S.history[+b.dataset.hmail];
@@ -749,7 +751,7 @@ $("hSearch").oninput=()=>{hPage=1;renderHistory()};
 $("hFilterBtn").onclick=()=>{const f=$("hFilters");f.hidden=!f.hidden;$("hFilterBtn").setAttribute("aria-expanded",String(!f.hidden))};
 $("hExport").onclick=()=>{
   const list=hFiltered();if(!list.length){toast("Nothing to export");return}
-  const cols=["Settlement date","Driver","Vehicle","Trip date","Trip vehicle","From","To","LR No","Return from","Return to","Return LR No","Trip payment","Extra amount","Extra remarks","Advance","Starting km","Closing km","Running km","Used diesel","Remarks","Settlement total","Diesel debit","Final payable","Payment status","Email sent"];
+  const cols=["Settlement date","Driver","Vehicle","Trip date","Trip vehicle","From","To","LR No","Return from","Return to","Return LR No","Trip payment","Extra amount","Extra remarks","Advance","Starting km","Closing km","Running km","Used diesel","Remarks","Settlement total","Debit","Final payable","Payment status","Email sent"];
   const cell=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
   const rows=[cols];for(const {h} of list)for(const t of h.trips)rows.push([h.sdate,h.driver,h.vehicle,t.date,t.veh,t.from,t.to,t.lr,t.retFrom,t.retTo,t.retLr,t.pay,t.extra,t.extraRem,t.adv,t.startKm,t.closeKm,t.km,t.used,t.rem,h.net,h.dieselDebit||0,finalAmt(h),h.status,h.emailSentAt?"Yes":"No"]);
   const blob=new Blob(["﻿"+rows.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});
@@ -811,7 +813,7 @@ function renderSum(){
   $("tExcess").innerHTML=`<span class="${T.excess>0?"pos":"negv"}">${f2(T.excess)} L</span>`;
   const fin=T.net-(S.debit||0);
   $("tNet").textContent=inr(fin);
-  $("tDebit").hidden=!S.debit;$("tDebit").textContent=S.debit?`${inr(T.net)} − ${inr(S.debit)} diesel debit${S.debitRem?" ("+S.debitRem+")":""}`:"";
+  $("tDebit").hidden=!S.debit;$("tDebit").textContent=S.debit?`${inr(T.net)} − ${inr(S.debit)} debit${S.debitRem?" ("+S.debitRem+")":""}`:"";
   $("tWords").textContent=inWords(fin);
   $("sumList").innerHTML=S.trips.map(t=>{const c=calc(t);return`
     <div class="sum-item"><div class="d">${fmtDate(t.date)} · ${t.veh}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div>
@@ -840,8 +842,8 @@ function summaryBlock(T,debit,debitRem){
 ${li("Total Trip Payment","₹ "+n(T.pay))}${li("Total Extra Amount","₹ "+n(T.extra))}${li("Total Advance","₹ "+n(T.adv))}
 ${li("Total Running Km",Math.round(T.km).toLocaleString("en-IN")+" km")}
 ${li("Total Diesel Used",n(T.used)+" L &nbsp;|&nbsp; Total Udd Actual Diesel: "+n(T.allowed)+" L")}
-${debit?li("Diesel Debit","₹ "+n(debit)+(debitRem?` (${String(debitRem).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))})`:"")):""}
-<li style="margin:6px 0 3px;font-size:15px"><b>Net Payable Amount: ₹ ${n(finalNet)}</b>${debit?` <span style="color:#5f6b7a">(₹ ${n(T.net)} − ₹ ${n(debit)} diesel debit)</span>`:""}<br><b>${inWords(finalNet)}</b></li>
+${debit?li("Debit","₹ "+n(debit)+(debitRem?` (${String(debitRem).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))})`:"")):""}
+<li style="margin:6px 0 3px;font-size:15px"><b>Net Payable Amount: ₹ ${n(finalNet)}</b>${debit?` <span style="color:#5f6b7a">(₹ ${n(T.net)} − ₹ ${n(debit)} debit)</span>`:""}<br><b>${inWords(finalNet)}</b></li>
 </ul><!--/TS-SUM-->`;
 }
 function emailHTML(T){
@@ -983,7 +985,7 @@ function askDebitThenSend(){
   if(!S.driver){toast("Select a driver first");return}
   if(!S.trips.length){toast("Add at least one trip");return}
   const T=totals();
-  $("dmInfo").innerHTML=`${esc(S.driver)} · Total ${inr(T.net)} · Excess diesel <b class="${T.excess>0?"pos":"negv"}">${f2(T.excess)} L</b>${T.excess>0?" (used more than allowed)":" (within allowance)"}`;
+  $("dmInfo").innerHTML=`${esc(S.driver)} · Total ${inr(T.net)}. Enter any amount to deduct (diesel, damage, fine, etc.) with the reason.`;
   $("dmAmt").value=S.debit||"";$("dmRem").value=S.debitRem||"";$("dmErr").hidden=true;
   const upd=()=>{const v=Math.max(0,parseFloat($("dmAmt").value)||0);$("dmNet").textContent=inr(T.net-v);$("dmWords").textContent=inWords(T.net-v)};
   $("dmAmt").oninput=upd;upd();
@@ -997,6 +999,8 @@ async function confirmDebit(useAmount){
   S.debit=v;S.debitRem=rem;save();renderSum();closeDebit();
   await saveSettlement(true);
 }
+document.addEventListener("wheel",e=>{const t=e.target;if(t&&t.type==="number"&&document.activeElement===t)t.blur()},{passive:true});
+document.addEventListener("keydown",e=>{const t=e.target;if(t&&t.type==="number"&&(e.key==="ArrowUp"||e.key==="ArrowDown"))e.preventDefault()});
 $("dmCancel").onclick=closeDebit;$("dmOk").onclick=()=>confirmDebit(true);$("dmNone").onclick=()=>confirmDebit(false);
 $("debitModal").addEventListener("keydown",e=>{if(e.key==="Escape")closeDebit()});
 $("sendBtn").onclick=askDebitThenSend;
