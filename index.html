@@ -122,6 +122,8 @@ h2{font-family:var(--display);font-size:1.3rem;margin:0 0 8px;letter-spacing:.02
 .hbar .avgm{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--ink);opacity:.55}
 .hbar .vl{font-family:var(--mono);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 .hbar.none .vl{font-family:var(--body);font-weight:400;color:var(--muted)}
+.modalbg{position:fixed;inset:0;background:rgba(15,20,27,.45);z-index:50;display:grid;place-items:center;padding:16px}
+.modal{background:#fff;border-radius:10px;padding:18px;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
 .tag.on{background:var(--good-soft);color:var(--good)}.tag.off{background:var(--bad-soft);color:var(--bad)}
 /* ===== Console shell (sidebar + page header + table lists) ===== */
 :root{--side:#1e2227;--side-2:#272c33;--side-ink:#c5ccd6;--side-dim:#8b95a3;--link:#2563c9;--page:#f3f5f8}
@@ -286,7 +288,7 @@ img{max-width:100%}
       <div class="tile"><div class="label">Advance paid</div><div class="v" id="tAdv"></div></div>
       <div class="tile"><div class="label">Excess diesel</div><div class="v" id="tExcess"></div></div>
     </div>
-    <div class="net"><div><div class="label">Total amount payable</div></div><div class="v" id="tNet"></div><div id="tWords" style="flex-basis:100%;font-weight:600;font-size:.92rem;border-top:1px dashed var(--accent);padding-top:8px"></div></div>
+    <div class="net"><div><div class="label">Total amount payable</div></div><div class="v" id="tNet"></div><div id="tDebit" class="formula" style="flex-basis:100%;font-family:var(--mono)" hidden></div><div id="tWords" style="flex-basis:100%;font-weight:600;font-size:.92rem;border-top:1px dashed var(--accent);padding-top:8px"></div></div>
 
     <div class="card"><h2>Trips</h2><div class="sum-list" id="sumList"></div></div>
 
@@ -410,6 +412,19 @@ img{max-width:100%}
   </section>
 </div></main>
 </div></div>
+<div class="modalbg" id="debitModal" hidden role="dialog" aria-modal="true" aria-labelledby="dmTitle">
+  <div class="modal">
+    <h2 id="dmTitle" style="margin:0 0 4px">Diesel debit before sending</h2>
+    <div class="route" id="dmInfo" style="margin-bottom:12px"></div>
+    <div class="grid">
+      <label class="f"><span class="label">Diesel debit amount ₹</span><input id="dmAmt" class="num" type="number" min="0" step="any" placeholder="0"></label>
+      <label class="f"><span class="label">Debit remarks</span><input id="dmRem" placeholder="e.g. 12 L excess diesel"></label>
+    </div>
+    <div class="net" style="margin-top:12px;padding:12px"><div class="label">Net payable</div><div class="v" id="dmNet" style="font-size:1.2rem"></div><div id="dmWords" style="flex-basis:100%;font-size:.85rem;font-weight:600"></div></div>
+    <div id="dmErr" class="warn" hidden style="background:var(--bad-soft);color:var(--bad);margin-top:10px"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" id="dmCancel" style="flex:0 0 auto">Cancel</button><button class="btn" id="dmNone" style="flex:0 0 auto">No debit – send</button><button class="btn primary" id="dmOk" style="flex:0 0 auto">Send email</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
@@ -431,7 +446,7 @@ const DRAFT_KEY="ts_draft_v1";
 try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(d)Object.assign(S,d)}catch(e){}
 const drv=()=>S.drivers.find(d=>d.name===S.driver)||{};
 const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup}))}catch(e){}};
+const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem}))}catch(e){}};
 // ===== data layer =====
 async function q(p,what){const {data,error}=await p;if(error){console.error(error);toast(`Could not ${what}: ${error.message}`);throw error}return data}
 const drvFromRow=r=>({id:r.id,name:r.name,status:r.status,accHolder:r.acc_holder||"",accNo:r.acc_no||"",ifsc:r.ifsc||"",bank:r.bank_name||"",branch:r.branch||""});
@@ -653,11 +668,11 @@ function renderEditBanner(){
 }
 function startEdit(id){
   const h=S.history.find(x=>x.id===id);if(!h||h.status==="Sent")return;
-  if(!S.editingId)S.draftBackup={driver:S.driver,vehicle:S.vehicle,sdate:S.sdate,trips:S.trips};
-  S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));
+  if(!S.editingId)S.draftBackup={driver:S.driver,vehicle:S.vehicle,sdate:S.sdate,trips:S.trips,debit:S.debit||0,debitRem:S.debitRem||""};
+  S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));S.debit=h.dieselDebit||0;S.debitRem=h.debitRem||"";
   save();refreshSettle();tab(false);page("settle");toast("Loaded for editing");
 }
-function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips}S.editingId=null;S.draftBackup=null;save();refreshSettle()}
+function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips;S.debit=b.debit||0;S.debitRem=b.debitRem||""}else{S.debit=0;S.debitRem=""}S.editingId=null;S.draftBackup=null;save();refreshSettle()}
 $("cancelEdit").onclick=()=>{endEdit();toast("Editing cancelled – no changes saved")};
 $("pgDash").onclick=()=>page("dash");
 let vSort={k:"trips",d:-1},dSort={k:"trips",d:-1};
@@ -794,8 +809,10 @@ function renderSum(){
   const T=totals();
   $("tPay").textContent=inr(T.pay);$("tExtra").textContent=inr(T.extra);$("tAdv").textContent=inr(T.adv);
   $("tExcess").innerHTML=`<span class="${T.excess>0?"pos":"negv"}">${f2(T.excess)} L</span>`;
-  $("tNet").textContent=inr(T.net);
-  $("tWords").textContent=inWords(T.net);
+  const fin=T.net-(S.debit||0);
+  $("tNet").textContent=inr(fin);
+  $("tDebit").hidden=!S.debit;$("tDebit").textContent=S.debit?`${inr(T.net)} − ${inr(S.debit)} diesel debit${S.debitRem?" ("+S.debitRem+")":""}`:"";
+  $("tWords").textContent=inWords(fin);
   $("sumList").innerHTML=S.trips.map(t=>{const c=calc(t);return`
     <div class="sum-item"><div class="d">${fmtDate(t.date)} · ${t.veh}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div>
     <div class="m">${t.from} → ${t.to} · LR ${t.lr||"-"}${t.retFrom||t.retTo?` · Return ${t.retFrom||"-"} → ${t.retTo||"-"} · LR ${t.retLr||"-"}`:""} · ${t.km} km · ${f2(t.used)} L used${t.extraRem?" · Extra: "+t.extraRem:""}</div><div class="m ${c.excess>0?"pos":"negv"}">${f2(c.excess)} L</div></div>`}).join("");
@@ -852,7 +869,7 @@ function emailHTML(T){
 <tr><td colspan="5" style="${B}font-weight:700;text-align:center;font-size:15px">TOTAL AMOUNT</td><td colspan="4" style="${B}font-weight:700;font-size:15px">₹ ${n(T.net)}</td><td colspan="6" style="${B}"></td></tr>
 <tr><td colspan="5" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="10" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
 </table>
-${(h=>summaryBlock(T,h?.dieselDebit||0,h?.debitRem||""))(S.editingId&&(S.history||[]).find(x=>x.id===S.editingId))}
+${summaryBlock(T,S.debit||0,S.debitRem||"")}
 <p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>
 <table style="border-collapse:collapse;font-size:13px">
 ${(d=>[["Account Holder Name",d.accHolder],["Account Number",d.accNo],["IFSC Code",(d.ifsc||"").toUpperCase()],["Bank Name",d.bank],["Branch",d.branch]])(drv()).map(([k,v])=>`<tr><td style="${B}background:#e8edf3;font-weight:700;white-space:nowrap">${k}</td><td style="${B}min-width:200px">${D(v)}</td></tr>`).join("")}
@@ -932,6 +949,7 @@ async function saveSettlement(withEmail){
   try{
     const T=totals(),d=drv(),html=emailHTML(T),subject=(S.editingId?"Revised - ":"")+$("subj").value;
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
+      diesel_debit:S.debit||0,debit_remarks:(S.debitRem||"").trim()||null,debit_at:S.debit?new Date().toISOString():null,
       bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,status:"Pending for Approval"};
     if(withEmail){row.email_sent_at=null;row.email_error=null}
     let sid;
@@ -951,19 +969,39 @@ async function saveSettlement(withEmail){
     await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
     const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
     const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
-    if(!withEmail){if(S.editingId)endEdit();else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum()}
+    if(!withEmail){if(S.editingId)endEdit();else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";save();renderTrips();renderSum()}
       toast("Saved – no email sent. Use Send email on Settlements when ready.");tab(false);page("history");return}
     const mail=await sendMail(sid,subject,html);
     const note=mail.ok?"email sent":`email NOT sent: ${mail.err}`;
     if(S.editingId){endEdit();toast(`Resent for approval – ${note}`)}
-    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
+    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
     tab(false);page("history");
   }catch(e){/* toast already shown */}
   finally{btn.disabled=false;$("hdrSave").disabled=$("hdrSend").disabled=false}
 }
-$("sendBtn").onclick=()=>saveSettlement(true);
+function askDebitThenSend(){
+  if(!S.driver){toast("Select a driver first");return}
+  if(!S.trips.length){toast("Add at least one trip");return}
+  const T=totals();
+  $("dmInfo").innerHTML=`${esc(S.driver)} · Total ${inr(T.net)} · Excess diesel <b class="${T.excess>0?"pos":"negv"}">${f2(T.excess)} L</b>${T.excess>0?" (used more than allowed)":" (within allowance)"}`;
+  $("dmAmt").value=S.debit||"";$("dmRem").value=S.debitRem||"";$("dmErr").hidden=true;
+  const upd=()=>{const v=Math.max(0,parseFloat($("dmAmt").value)||0);$("dmNet").textContent=inr(T.net-v);$("dmWords").textContent=inWords(T.net-v)};
+  $("dmAmt").oninput=upd;upd();
+  $("debitModal").hidden=false;$("dmAmt").focus();
+}
+function closeDebit(){$("debitModal").hidden=true}
+async function confirmDebit(useAmount){
+  const T=totals();let v=useAmount?Math.max(0,parseFloat($("dmAmt").value)||0):0;const rem=useAmount?$("dmRem").value.trim():"";
+  if(v>T.net){$("dmErr").textContent="The debit can't be more than the total amount.";$("dmErr").hidden=false;return}
+  if(v>0&&!rem){$("dmErr").textContent="Please enter the reason for the debit in Debit remarks.";$("dmErr").hidden=false;$("dmRem").focus();return}
+  S.debit=v;S.debitRem=rem;save();renderSum();closeDebit();
+  await saveSettlement(true);
+}
+$("dmCancel").onclick=closeDebit;$("dmOk").onclick=()=>confirmDebit(true);$("dmNone").onclick=()=>confirmDebit(false);
+$("debitModal").addEventListener("keydown",e=>{if(e.key==="Escape")closeDebit()});
+$("sendBtn").onclick=askDebitThenSend;
 $("saveOnly").onclick=()=>saveSettlement(false);
-$("hdrSave").onclick=()=>saveSettlement(false);$("hdrSend").onclick=()=>saveSettlement(true);
+$("hdrSave").onclick=()=>saveSettlement(false);$("hdrSend").onclick=askDebitThenSend;
 let curPage="dash";
 async function refreshData(btn){
   if(btn){btn.disabled=true;btn.textContent="↻ Refreshing…"}
