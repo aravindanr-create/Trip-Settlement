@@ -18,7 +18,8 @@
 const SUPABASE_URL  = 'https://kcouuizatvepsebpfxpn.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_hYSJSYIQg-MUsdWhEpdzVg_vFsgYm5Q'; // publishable key – safe to keep here
 const SENDER_NAME   = 'Aravindan R - Uddhava Logistics';
-const FINANCE_EMAIL = 'finance@aartycarriers.com';
+// Approved settlements are emailed to all of these (comma-separated)
+const FINANCE_EMAIL = 'finance@aartycarriers.com,aravindan.r@aartycarriers.com';
 
 /* ---------------- 1. Send the approval email (called by the app) ---------------- */
 function doPost(e) {
@@ -96,7 +97,7 @@ function decide(id, code, action, name, remarks) {
   if (decision === 'Approved') {
     MailApp.sendEmail({
       to: FINANCE_EMAIL,
-      cc: owner,
+      cc: FINANCE_EMAIL.toLowerCase().indexOf(String(owner).toLowerCase()) >= 0 ? '' : owner,
       subject: ('Approved – ' + String(res.subject || 'Trip Settlement').replace(/^(Revised - )?Need Approval For /, '')).slice(0, 250),
       htmlBody: banner('#1d7a4a', 'APPROVED – please process the payment') + String(res.email_html || ''),
       name: SENDER_NAME
