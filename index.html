@@ -677,7 +677,7 @@ function renderEditBanner(){
 function startEdit(id){
   const h=S.history.find(x=>x.id===id);if(!h||!isOpen(h))return;
   if(!S.editingId)S.draftBackup={driver:S.driver,vehicle:S.vehicle,sdate:S.sdate,trips:S.trips,debit:S.debit||0,debitRem:S.debitRem||""};
-  S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));S.debit=h.dieselDebit||0;S.debitRem=h.debitRem||"";
+  S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));S.debit=h.dieselDebit||0;S.debitRem=h.debitRem||"";S.subjCustom=h.subject||null;
   save();refreshSettle();tab(false);page("settle");toast("Loaded for editing");
 }
 function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips;S.debit=b.debit||0;S.debitRem=b.debitRem||""}else{S.debit=0;S.debitRem=""}S.subjCustom=null;S.editingId=null;S.draftBackup=null;save();refreshSettle()}
@@ -974,10 +974,13 @@ async function saveSettlement(withEmail){
   if(withEmail&&MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email in Settings");return}
   const btn=$(withEmail?"sendBtn":"saveOnly");if(btn.disabled)return;btn.disabled=true;$("hdrSave").disabled=$("hdrSend").disabled=true;
   try{
-    const T=totals(),d=drv(),html=emailHTML(T),subject=finalSubject();
+    const T=totals(),d=drv(),html=emailHTML(T),eh=S.editingId&&S.history.find(x=>x.id===S.editingId);
+    // Saving an edit WITHOUT email keeps the settlement's subject and status exactly as they were
+    const quietEdit=!withEmail&&!!eh;
+    const subject=quietEdit?(S.subjCustom||eh.subject||autoSubject()):finalSubject();
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
       diesel_debit:S.debit||0,debit_remarks:(S.debitRem||"").trim()||null,debit_at:S.debit?new Date().toISOString():null,
-      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,status:"Pending for Approval"};
+      bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,status:quietEdit?eh.status:"Pending for Approval"};
     if(withEmail){row.email_sent_at=null;row.email_error=null}
     let sid;
     if(S.editingId){
