@@ -303,7 +303,7 @@ img{max-width:100%}
 
     <div class="card">
       <h2>Email preview</h2>
-      <label class="f" style="margin-bottom:8px"><span class="label">Subject</span><input id="subj" readonly></label>
+      <label class="f" style="margin-bottom:8px"><span class="label">Subject <button class="lnk" id="subjReset" type="button" hidden style="font-size:.75rem;text-transform:none;letter-spacing:0;margin-left:6px">Reset to default</button></span><input id="subj" maxlength="200"></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
       <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn dark" id="saveOnly">Save (no email)</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
@@ -421,6 +421,7 @@ img{max-width:100%}
     <h2 id="dmTitle" style="margin:0 0 4px">Debit before sending</h2>
     <div class="route" id="dmInfo" style="margin-bottom:12px"></div>
     <div class="grid">
+      <label class="f" style="grid-column:1/-1"><span class="label">Email subject</span><input id="dmSubj" maxlength="200"></label>
       <label class="f"><span class="label">Debit amount ₹</span><input id="dmAmt" class="num" type="number" min="0" step="any" placeholder="0"></label>
       <label class="f"><span class="label">Debit remarks</span><input id="dmRem" placeholder="e.g. Diesel excess / Damage / Fine"></label>
     </div>
@@ -450,7 +451,7 @@ const DRAFT_KEY="ts_draft_v1";
 try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(d)Object.assign(S,d)}catch(e){}
 const drv=()=>S.drivers.find(d=>d.name===S.driver)||{};
 const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem}))}catch(e){}};
+const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem,subjCustom}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem,subjCustom}))}catch(e){}};
 // ===== data layer =====
 async function q(p,what){const {data,error}=await p;if(error){console.error(error);toast(`Could not ${what}: ${error.message}`);throw error}return data}
 const drvFromRow=r=>({id:r.id,name:r.name,status:r.status,accHolder:r.acc_holder||"",accNo:r.acc_no||"",ifsc:r.ifsc||"",bank:r.bank_name||"",branch:r.branch||""});
@@ -679,7 +680,7 @@ function startEdit(id){
   S.editingId=id;S.driver=h.driver;S.vehicle=h.vehicle;S.sdate=h.sdate;S.trips=JSON.parse(JSON.stringify(h.trips));S.debit=h.dieselDebit||0;S.debitRem=h.debitRem||"";
   save();refreshSettle();tab(false);page("settle");toast("Loaded for editing");
 }
-function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips;S.debit=b.debit||0;S.debitRem=b.debitRem||""}else{S.debit=0;S.debitRem=""}S.editingId=null;S.draftBackup=null;save();refreshSettle()}
+function endEdit(){const b=S.draftBackup;if(b){S.driver=b.driver;S.vehicle=b.vehicle;S.sdate=b.sdate;S.trips=b.trips;S.debit=b.debit||0;S.debitRem=b.debitRem||""}else{S.debit=0;S.debitRem=""}S.subjCustom=null;S.editingId=null;S.draftBackup=null;save();refreshSettle()}
 $("cancelEdit").onclick=()=>{endEdit();toast("Editing cancelled – no changes saved")};
 $("pgDash").onclick=()=>page("dash");
 let vSort={k:"trips",d:-1},dSort={k:"trips",d:-1};
@@ -812,6 +813,9 @@ function totalsOf(trips){
   trips.forEach(t=>{const c=calc(t);T.pay+=t.pay;T.extra+=t.extra;T.adv+=t.adv;T.used+=t.used;T.km+=t.km;T.allowed+=c.allowed;T.excess+=c.excess});
   T.net=T.pay+T.extra-T.adv; return T;
 }
+const autoSubject=()=>`Need Approval For Trip Settlement - ${S.driver||"-"} - ${S.vehicle||"-"} - ${fmtDate(S.sdate)}`;
+function setSubject(v){v=(v||"").trim();S.subjCustom=v&&v!==autoSubject()?v:null;save();$("subjReset").hidden=!S.subjCustom}
+function finalSubject(){const v=($("subj").value||"").trim()||autoSubject();return S.editingId&&!/^revised\b/i.test(v)?"Revised - "+v:v}
 function renderSum(){
   const T=totals();
   $("tPay").textContent=inr(T.pay);$("tExtra").textContent=inr(T.extra);$("tAdv").textContent=inr(T.adv);
@@ -824,7 +828,8 @@ function renderSum(){
     <div class="sum-item"><div class="d">${fmtDate(t.date)} · ${t.veh}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div>
     <div class="m">${t.from} → ${t.to} · LR ${t.lr||"-"}${t.retFrom||t.retTo?` · Return ${t.retFrom||"-"} → ${t.retTo||"-"} · LR ${t.retLr||"-"}`:""} · ${t.km} km · ${f2(t.used)} L used${t.extraRem?" · Extra: "+t.extraRem:""}</div><div class="m ${c.excess>0?"pos":"negv"}">${f2(c.excess)} L</div></div>`}).join("");
   $("msg").innerHTML=emailHTML(T);
-  $("subj").value=`Need Approval For Trip Settlement - ${S.driver} - ${S.vehicle} - ${fmtDate(S.sdate)}`;
+  if(document.activeElement!==$("subj"))$("subj").value=S.subjCustom||autoSubject();
+  $("subjReset").hidden=!S.subjCustom;
 }
 function inWords(amt){
   const ones=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
@@ -969,7 +974,7 @@ async function saveSettlement(withEmail){
   if(withEmail&&MAIL_URL&&!hasRecipients()){toast("Add at least one recipient email in Settings");return}
   const btn=$(withEmail?"sendBtn":"saveOnly");if(btn.disabled)return;btn.disabled=true;$("hdrSave").disabled=$("hdrSend").disabled=true;
   try{
-    const T=totals(),d=drv(),html=emailHTML(T),subject=(S.editingId?"Revised - ":"")+$("subj").value;
+    const T=totals(),d=drv(),html=emailHTML(T),subject=finalSubject();
     const row={driver_id:d.id||null,driver_name:S.driver,vehicle_no:S.vehicle||null,settlement_date:S.sdate||null,net:T.net,
       diesel_debit:S.debit||0,debit_remarks:(S.debitRem||"").trim()||null,debit_at:S.debit?new Date().toISOString():null,
       bank:{accHolder:d.accHolder,accNo:d.accNo,ifsc:d.ifsc,bank:d.bank,branch:d.branch},subject,email_html:html,status:"Pending for Approval"};
@@ -991,12 +996,12 @@ async function saveSettlement(withEmail){
     await q(sb.from("ts_trips").insert(S.trips.map((t,i)=>tripToRow(t,i,sid))),"save trips");
     const fresh=await q(sb.from("ts_settlements").select("*, ts_trips(*)").eq("id",sid).single(),"reload settlement");
     const i=S.history.findIndex(x=>x.id===sid);if(i>=0)S.history[i]=histFromRow(fresh);else S.history.push(histFromRow(fresh));
-    if(!withEmail){if(S.editingId)endEdit();else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";save();renderTrips();renderSum()}
+    if(!withEmail){if(S.editingId)endEdit();else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";S.subjCustom=null;save();renderTrips();renderSum()}
       toast("Saved – no email sent. Use Send email on Settlements when ready.");tab(false);page("history");return}
     const mail=await sendMail(sid,subject,html);
     const note=mail.ok?"email sent":`email NOT sent: ${mail.err}`;
     if(S.editingId){endEdit();toast(`Resent for approval – ${note}`)}
-    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
+    else{const last=S.trips[S.trips.length-1];S.trips=[blankTrip(last)];S.debit=0;S.debitRem="";S.subjCustom=null;save();renderTrips();renderSum();toast(`Saved as Pending for Approval – ${note}`)}
     tab(false);page("history");
   }catch(e){/* toast already shown */}
   finally{btn.disabled=false;$("hdrSave").disabled=$("hdrSend").disabled=false}
@@ -1006,7 +1011,7 @@ function askDebitThenSend(){
   if(!S.trips.length){toast("Add at least one trip");return}
   const T=totals();
   $("dmInfo").innerHTML=`${esc(S.driver)} · Total ${inr(T.net)}. Enter any amount to deduct (diesel, damage, fine, etc.) with the reason.`;
-  $("dmAmt").value=S.debit||"";$("dmRem").value=S.debitRem||"";$("dmErr").hidden=true;
+  $("dmSubj").value=$("subj").value||autoSubject();$("dmAmt").value=S.debit||"";$("dmRem").value=S.debitRem||"";$("dmErr").hidden=true;
   const upd=()=>{const v=Math.max(0,parseFloat($("dmAmt").value)||0);$("dmNet").textContent=inr(T.net-v);$("dmWords").textContent=inWords(T.net-v)};
   $("dmAmt").oninput=upd;upd();
   $("debitModal").hidden=false;$("dmAmt").focus();
@@ -1016,11 +1021,17 @@ async function confirmDebit(useAmount){
   const T=totals();let v=useAmount?Math.max(0,parseFloat($("dmAmt").value)||0):0;const rem=useAmount?$("dmRem").value.trim():"";
   if(v>T.net){$("dmErr").textContent="The debit can't be more than the total amount.";$("dmErr").hidden=false;return}
   if(v>0&&!rem){$("dmErr").textContent="Please enter the reason for the debit in Debit remarks.";$("dmErr").hidden=false;$("dmRem").focus();return}
+  const sj=$("dmSubj").value.trim();
+  if(!sj){$("dmErr").textContent="Please enter an email subject.";$("dmErr").hidden=false;$("dmSubj").focus();return}
+  setSubject(sj);$("subj").value=sj;
   S.debit=v;S.debitRem=rem;save();renderSum();closeDebit();
   await saveSettlement(true);
 }
 document.addEventListener("wheel",e=>{const t=e.target;if(t&&t.type==="number"&&document.activeElement===t)t.blur()},{passive:true});
 document.addEventListener("keydown",e=>{const t=e.target;if(t&&t.type==="number"&&(e.key==="ArrowUp"||e.key==="ArrowDown"))e.preventDefault()});
+$("subj").addEventListener("input",()=>setSubject($("subj").value));
+$("subj").addEventListener("blur",()=>{if(!$("subj").value.trim()){S.subjCustom=null;save();renderSum()}});
+$("subjReset").onclick=()=>{S.subjCustom=null;save();$("subj").value=autoSubject();$("subjReset").hidden=true};
 $("dmCancel").onclick=closeDebit;$("dmOk").onclick=()=>confirmDebit(true);$("dmNone").onclick=()=>confirmDebit(false);
 $("debitModal").addEventListener("keydown",e=>{if(e.key==="Escape")closeDebit()});
 $("sendBtn").onclick=askDebitThenSend;
