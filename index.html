@@ -304,6 +304,7 @@ img{max-width:100%}
     <div class="card">
       <h2>Email preview</h2>
       <label class="f" style="margin-bottom:8px"><span class="label">Subject <button class="lnk" id="subjReset" type="button" hidden style="font-size:.75rem;text-transform:none;letter-spacing:0;margin-left:6px">Reset to default</button></span><input id="subj" maxlength="200"></label>
+      <label class="f" style="margin-bottom:8px;max-width:260px"><span class="label">Mileage chart</span><select id="chartMonths"><option value="0">Don't show chart</option><option value="1">This month only</option><option value="2">Last 2 months</option><option value="3">Last 3 months</option><option value="4">Last 4 months</option><option value="5">Last 5 months</option><option value="6">Last 6 months</option><option value="9">Last 9 months</option><option value="12">Last 12 months</option></select></label>
       <span class="label">Body</span>
       <div class="mailbox"><div id="msg"></div></div>
       <div class="row" style="margin-top:10px"><button class="btn dark" id="copyMsg">Copy email</button><button class="btn dark" id="printMsg">Print summary</button><button class="btn dark" id="saveOnly">Save (no email)</button><button class="btn primary" id="sendBtn">Send for approval &amp; email</button></div>
@@ -857,11 +858,14 @@ ${debit?li("Debit","₹ "+n(debit)+(debitRem?` (${String(debitRem).replace(/[&<>
 <li style="margin:6px 0 3px;font-size:15px"><b>Net Payable Amount: ₹ ${n(finalNet)}</b>${debit?` <span style="color:#5f6b7a">(₹ ${n(T.net)} − ₹ ${n(debit)} debit)</span>`:""}<br><b>${inWords(finalNet)}</b></li>
 </ul><!--/TS-SUM-->`;
 }
+function chartMonths(){let v=6;try{const x=localStorage.getItem("ts_chart_months");if(x!==null&&!isNaN(+x))v=+x}catch(e){}return v}
+$("chartMonths").value=String(chartMonths());
+$("chartMonths").onchange=()=>{try{localStorage.setItem("ts_chart_months",$("chartMonths").value)}catch(e){}renderSum()};
 function mileageChart(){
-  const veh=S.vehicle;if(!veh)return"";
+  const veh=S.vehicle,N=chartMonths();if(!veh||!N)return"";
   const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const end=S.sdate?new Date(S.sdate+"T00:00"):new Date();
-  const months=[];for(let k=5;k>=0;k--){const d=new Date(end.getFullYear(),end.getMonth()-k,1);months.push({key:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),label:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+"-"+String(d.getFullYear()).slice(2),km:0,used:0})}
+  const months=[];for(let k=N-1;k>=0;k--){const d=new Date(end.getFullYear(),end.getMonth()-k,1);months.push({key:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),label:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+"-"+String(d.getFullYear()).slice(2),km:0,used:0})}
   const add=(t,fallback)=>{if((t.veh||fallback)!==veh||!t.date||!(t.used>0)||!(t.km>0))return;const m=months.find(x=>x.key===String(t.date).slice(0,7));if(m){m.km+=t.km;m.used+=t.used}};
   for(const h of S.history||[]){if(h.id===S.editingId)continue;for(const t of h.trips)add(t,h.vehicle)}
   for(const t of S.trips||[])add(t,S.vehicle);
@@ -871,7 +875,7 @@ function mileageChart(){
   const bar=m=>{if(!m.mil)return`<td valign="bottom" align="center" style="padding:0 10px;height:${BH+20}px;vertical-align:bottom;font-size:11px;color:#8a94a3">No trips</td>`;
     const h=Math.max(4,Math.round(m.mil/max*BH)),col=!std?"#3b6fd8":m.mil>=std?"#2e8b57":"#c0392b";
     return`<td valign="bottom" align="center" style="padding:0 10px;height:${BH+20}px;vertical-align:bottom"><div style="font-size:12px;font-weight:700;color:#18202c;margin-bottom:3px">${m.mil.toFixed(2)}</div><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto"><tr><td width="38" height="${h}" bgcolor="${col}" style="width:38px;height:${h}px;background:${col};font-size:0;line-height:0">&nbsp;</td></tr></table></td>`};
-  return `<p style="margin:16px 0 6px;font-weight:700">Last 6 Months Mileage – ${esc(veh)} (km/L)</p>
+  return `<p style="margin:16px 0 6px;font-weight:700">${N===1?"This Month":"Last "+N+" Months"} Mileage – ${esc(veh)} (km/L)</p>
 <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;${B}">
 <tr>${months.map(bar).join("")}</tr>
 <tr>${months.map(m=>`<td align="center" style="padding:5px 10px;border-top:1px solid #9aa4b1;font-weight:700;white-space:nowrap">${m.label}</td>`).join("")}</tr>
