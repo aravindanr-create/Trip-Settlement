@@ -973,7 +973,7 @@ function approvalButtons(sid,tok){
   return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:6px 0 14px"><tr>${b(u("approve"),"#1d7a4a","✔ Approve")}${b(u("reject"),"#b4322a","✖ Reject")}</tr></table>`;
 }
 async function sendMail(sid,subject,html){
-  let ok=false,err="";
+  let ok=false,err="";const ccHtml=html;
   const h0=S.history.find(x=>x.id===sid);
   if(MAIL_URL&&(!h0||h0.status==="Pending for Approval")){
     // a fresh secret code for every email: older emails for this settlement stop working
@@ -986,7 +986,7 @@ async function sendMail(sid,subject,html){
   if(!MAIL_URL){err="Email not connected yet"}
   else try{
     const {data}=await sb.auth.getSession();
-    const r=await fetch(MAIL_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:data.session?.access_token,subject,html})});
+    const r=await fetch(MAIL_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:data.session?.access_token,subject,html,ccHtml})});
     const j=await r.json();ok=!!j.ok;err=j.ok?"":(j.error||"Unknown error");
   }catch(e){err="Could not reach the email service"}
   const upd=ok?{email_sent_at:new Date().toISOString(),email_error:null}:{email_error:err};

@@ -2,7 +2,8 @@
  * Trip Settlement – email sender + Approve / Reject (Google Apps Script web app)
  *
  * doPost : the Trip Settlement app calls this to send the approval email
- *          (recipient 1 in "To", all others in "CC").
+ *          (recipient 1 gets the Approve / Reject buttons; all others get a
+ *          separate copy without the buttons).
  * doGet  : the Approve / Reject buttons inside that email open this page.
  *          The approver confirms with their name (and remarks); the decision is
  *          saved in the app, and an approved settlement is emailed to Finance.
@@ -45,14 +46,27 @@ function doPost(e) {
       .filter(function (x) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x); });
     if (!to.length) return reply_({ ok: false, error: 'No recipient emails saved in the app' });
 
+    const subject = String(body.subject || 'Trip Settlement').slice(0, 250);
+    // Recipient 1 is the approver: only that email carries the Approve / Reject buttons.
+    // Everyone else gets a separate copy without the buttons (body.ccHtml).
+    const split = typeof body.ccHtml === 'string' && body.ccHtml && to.length > 1;
     MailApp.sendEmail({
       to: to[0],
-      cc: to.slice(1).join(','),
-      subject: String(body.subject || 'Trip Settlement').slice(0, 250),
+      cc: split ? '' : to.slice(1).join(','),
+      subject: subject,
       htmlBody: String(body.html || ''),
       name: SENDER_NAME,
       replyTo: user.email
     });
+    if (split) {
+      MailApp.sendEmail({
+        to: to.slice(1).join(','),
+        subject: subject,
+        htmlBody: '<div style="font-family:Calibri,Arial,sans-serif;font-size:13px;color:#5f6b7a;margin:0 0 10px">For your information. Approval request sent to ' + esc_(to[0]) + '.</div>' + body.ccHtml,
+        name: SENDER_NAME,
+        replyTo: user.email
+      });
+    }
     return reply_({ ok: true, to: to[0], cc: to.slice(1), quotaLeft: MailApp.getRemainingDailyQuota() });
   } catch (err) {
     return reply_({ ok: false, error: String(err && err.message || err) });
