@@ -970,10 +970,11 @@ function newToken(){const a=new Uint8Array(24);crypto.getRandomValues(a);return 
 function approvalButtons(sid,tok){
   const u=a=>`${MAIL_URL}?id=${encodeURIComponent(sid)}&a=${a}&t=${tok}`;
   const b=(href,bg,label)=>`<td style="padding:0 8px 0 0"><a href="${href}" target="_blank" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font:700 15px Arial,sans-serif;padding:11px 22px;border-radius:6px">${label}</a></td>`;
-  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:6px 0 14px"><tr>${b(u("approve"),"#1d7a4a","✔ Approve")}${b(u("reject"),"#b4322a","✖ Reject")}</tr></table>`;
+  const r1=(S.recips||[]).find(r=>(r.contact||"").trim())||{},who=esc((r1.name||"").trim()||(r1.contact||"").trim());
+  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:6px 0 4px"><tr>${b(u("approve"),"#1d7a4a","✔ Approve")}${b(u("reject"),"#b4322a","✖ Reject")}</tr></table>${who?`<div style="font:12px Arial,sans-serif;color:#5f6b7a;margin:0 0 14px">Only <b>${who}</b> can approve or reject. Others: for information only.</div>`:""}`;
 }
 async function sendMail(sid,subject,html){
-  let ok=false,err="";const ccHtml=html;
+  let ok=false,err="";
   const h0=S.history.find(x=>x.id===sid);
   if(MAIL_URL&&(!h0||h0.status==="Pending for Approval")){
     // a fresh secret code for every email: older emails for this settlement stop working
@@ -986,7 +987,7 @@ async function sendMail(sid,subject,html){
   if(!MAIL_URL){err="Email not connected yet"}
   else try{
     const {data}=await sb.auth.getSession();
-    const r=await fetch(MAIL_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:data.session?.access_token,subject,html,ccHtml})});
+    const r=await fetch(MAIL_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:data.session?.access_token,subject,html,sid})});
     const j=await r.json();ok=!!j.ok;err=j.ok?"":(j.error||"Unknown error");
   }catch(e){err="Could not reach the email service"}
   const upd=ok?{email_sent_at:new Date().toISOString(),email_error:null}:{email_error:err};

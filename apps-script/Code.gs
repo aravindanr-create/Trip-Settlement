@@ -2,8 +2,8 @@
  * Trip Settlement – email sender + Approve / Reject (Google Apps Script web app)
  *
  * doPost : the Trip Settlement app calls this to send the approval email
- *          (recipient 1 gets the Approve / Reject buttons; all others get a
- *          separate copy without the buttons).
+ *          (recipient 1 in "To", all others in "CC"). Only recipient 1 may
+ *          approve or reject: the approval page checks the signed-in Google account.
  * doGet  : the Approve / Reject buttons inside that email open this page.
  *          The approver confirms with their name (and remarks); the decision is
  *          saved in the app, and an approved settlement is emailed to Finance.
@@ -46,27 +46,17 @@ function doPost(e) {
       .filter(function (x) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x); });
     if (!to.length) return reply_({ ok: false, error: 'No recipient emails saved in the app' });
 
-    const subject = String(body.subject || 'Trip Settlement').slice(0, 250);
-    // Recipient 1 is the approver: only that email carries the Approve / Reject buttons.
-    // Everyone else gets a separate copy without the buttons (body.ccHtml).
-    const split = typeof body.ccHtml === 'string' && body.ccHtml && to.length > 1;
+    // One email: recipient 1 in To (the approver), everyone else in CC.
     MailApp.sendEmail({
       to: to[0],
-      cc: split ? '' : to.slice(1).join(','),
-      subject: subject,
+      cc: to.slice(1).join(','),
+      subject: String(body.subject || 'Trip Settlement').slice(0, 250),
       htmlBody: String(body.html || ''),
       name: SENDER_NAME,
       replyTo: user.email
     });
-    if (split) {
-      MailApp.sendEmail({
-        to: to.slice(1).join(','),
-        subject: subject,
-        htmlBody: '<div style="font-family:Calibri,Arial,sans-serif;font-size:13px;color:#5f6b7a;margin:0 0 10px">For your information. Approval request sent to ' + esc_(to[0]) + '.</div>' + body.ccHtml,
-        name: SENDER_NAME,
-        replyTo: user.email
-      });
-    }
+    // Remember who may approve this settlement (recipient 1)
+    if (body.sid) PropertiesService.getScriptProperties().setProperty('approver_' + body.sid, to[0].toLowerCase());
     return reply_({ ok: true, to: to[0], cc: to.slice(1), quotaLeft: MailApp.getRemainingDailyQuota() });
   } catch (err) {
     return reply_({ ok: false, error: String(err && err.message || err) });
@@ -86,6 +76,7 @@ function doGet(e) {
   let who = '';
   try { who = Session.getActiveUser().getEmail() || ''; } catch (err) { who = ''; }
   t.who = who;
+  t.blocked = notApprover_(t.id, who);
   return t.evaluate()
     .setTitle('Trip Settlement – Approval')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -93,6 +84,10 @@ function doGet(e) {
 
 /** Called from the approval page with google.script.run */
 function decide(id, code, action, name, remarks) {
+  let me = '';
+  try { me = Session.getActiveUser().getEmail() || ''; } catch (err) { me = ''; }
+  const only = notApprover_(id, me);
+  if (only) throw new Error('Only ' + only + ' can approve or reject this settlement.');
   const decision = action === 'reject' ? 'Rejected' : 'Approved';
   const res = rpc_('ts_decide', { p_id: id, p_token: code, p_decision: decision, p_by: String(name || ''), p_remarks: String(remarks || '') });
   if (!res) throw new Error('This approval link is no longer valid. The settlement may have been edited and resent – please use the latest email.');
@@ -129,6 +124,12 @@ function decide(id, code, action, name, remarks) {
 }
 
 /* ---------------- helpers ---------------- */
+/** Returns the approver's email if the signed-in person is NOT the approver, else ''. */
+function notApprover_(id, email) {
+  const approver = PropertiesService.getScriptProperties().getProperty('approver_' + id) || '';
+  if (!approver || !email) return '';           // cannot check (older email, or Google account not shared)
+  return String(email).toLowerCase() === approver ? '' : approver;
+}
 function rpc_(fn, args) {
   const r = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
     method: 'post', contentType: 'application/json', payload: JSON.stringify(args),
@@ -178,6 +179,10 @@ const PAGE_HTML = String.raw`<!doctype html>
 <? if (!info) { ?>
   <h1>Link not valid</h1>
   <div class="msg err">This approval link has expired or is incorrect. If the settlement was edited and resent, please use the latest email.</div>
+<? } else if (blocked && info.status === 'Pending for Approval') { ?>
+  <h1>Not allowed</h1>
+  <div class="sub"><?= info.driver ?> · <?= info.vehicle || '' ?></div>
+  <div class="msg err">Only <b><?= blocked ?></b> can approve or reject this settlement. You are signed in as <b><?= who ?></b>. This email is for your information only.</div>
 <? } else if (info.status !== 'Pending for Approval') { ?>
   <h1>Already <?= info.status ?></h1>
   <div class="sub"><?= info.driver ?> · <?= info.vehicle || '' ?></div>
