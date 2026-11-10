@@ -857,6 +857,28 @@ ${debit?li("Debit","₹ "+n(debit)+(debitRem?` (${String(debitRem).replace(/[&<>
 <li style="margin:6px 0 3px;font-size:15px"><b>Net Payable Amount: ₹ ${n(finalNet)}</b>${debit?` <span style="color:#5f6b7a">(₹ ${n(T.net)} − ₹ ${n(debit)} debit)</span>`:""}<br><b>${inWords(finalNet)}</b></li>
 </ul><!--/TS-SUM-->`;
 }
+function mileageChart(){
+  const veh=S.vehicle;if(!veh)return"";
+  const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const end=S.sdate?new Date(S.sdate+"T00:00"):new Date();
+  const months=[];for(let k=5;k>=0;k--){const d=new Date(end.getFullYear(),end.getMonth()-k,1);months.push({key:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),label:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+"-"+String(d.getFullYear()).slice(2),km:0,used:0})}
+  const add=(t,fallback)=>{if((t.veh||fallback)!==veh||!t.date||!(t.used>0)||!(t.km>0))return;const m=months.find(x=>x.key===String(t.date).slice(0,7));if(m){m.km+=t.km;m.used+=t.used}};
+  for(const h of S.history||[]){if(h.id===S.editingId)continue;for(const t of h.trips)add(t,h.vehicle)}
+  for(const t of S.trips||[])add(t,S.vehicle);
+  months.forEach(m=>m.mil=m.used>0?m.km/m.used:0);
+  const std=S.stdMil>0?S.stdMil:0,max=Math.max(std,...months.map(m=>m.mil))||1,BH=140;
+  const B="border:1px solid #9aa4b1;";
+  const bar=m=>{if(!m.mil)return`<td valign="bottom" align="center" style="padding:0 10px;height:${BH+20}px;vertical-align:bottom;font-size:11px;color:#8a94a3">No trips</td>`;
+    const h=Math.max(4,Math.round(m.mil/max*BH)),col=!std?"#3b6fd8":m.mil>=std?"#2e8b57":"#c0392b";
+    return`<td valign="bottom" align="center" style="padding:0 10px;height:${BH+20}px;vertical-align:bottom"><div style="font-size:12px;font-weight:700;color:#18202c;margin-bottom:3px">${m.mil.toFixed(2)}</div><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto"><tr><td width="38" height="${h}" bgcolor="${col}" style="width:38px;height:${h}px;background:${col};font-size:0;line-height:0">&nbsp;</td></tr></table></td>`};
+  return `<p style="margin:16px 0 6px;font-weight:700">Last 6 Months Mileage – ${esc(veh)} (km/L)</p>
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;${B}">
+<tr>${months.map(bar).join("")}</tr>
+<tr>${months.map(m=>`<td align="center" style="padding:5px 10px;border-top:1px solid #9aa4b1;font-weight:700;white-space:nowrap">${m.label}</td>`).join("")}</tr>
+<tr>${months.map(m=>`<td align="center" style="padding:0 10px 5px;color:#5f6b7a;white-space:nowrap;font-size:11px">${m.used>0?Math.round(m.km)+" km / "+m.used.toFixed(1)+" L":"&nbsp;"}</td>`).join("")}</tr>
+</table>
+${std?`<div style="font-size:12px;color:#5f6b7a;margin-top:4px"><span style="color:#2e8b57;font-weight:700">■</span> at or above standard &nbsp; <span style="color:#c0392b;font-weight:700">■</span> below standard &nbsp;·&nbsp; Standard mileage: ${std} km/L</div>`:""}`;
+}
 function emailHTML(T){
   const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const B="border:1px solid #9aa4b1;padding:5px 8px;";
@@ -883,6 +905,7 @@ function emailHTML(T){
 <tr><td colspan="4" style="${B}font-weight:700;text-align:center">AMOUNT IN WORDS</td><td colspan="9" style="${B}font-weight:700">${inWords(T.net)}</td></tr>
 </table>
 ${summaryBlock(T,S.debit||0,S.debitRem||"")}
+${mileageChart()}
 <p style="margin:16px 0 6px;font-weight:700">Driver Bank Details</p>
 <table style="border-collapse:collapse;font-size:13px">
 ${(d=>[["Account Holder Name",d.accHolder],["Account Number",d.accNo],["IFSC Code",(d.ifsc||"").toUpperCase()],["Bank Name",d.bank],["Branch",d.branch]])(drv()).map(([k,v])=>`<tr><td style="${B}background:#e8edf3;font-weight:700;white-space:nowrap">${k}</td><td style="${B}min-width:200px">${D(v)}</td></tr>`).join("")}
