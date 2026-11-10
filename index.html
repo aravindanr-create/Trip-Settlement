@@ -31,7 +31,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
 @media(min-width:600px){.grid.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .f{display:flex;flex-direction:column;gap:3px;min-width:0}
-.f.span2{grid-column:span 2}
+.f.span2{grid-column:span 2}.f.span3{grid-column:1/-1}
 input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 input.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
@@ -449,6 +449,7 @@ let S={driver:"",vehicle:"",sdate:new Date().toISOString().slice(0,10),stdMil:4,
   history:[],drivers:[],vehicles:[],recips:[1,2,3,4].map(()=>({name:"",contact:""})),editingId:null,draftBackup:null};
 const DRAFT_KEY="ts_draft_v1";
 try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(d)Object.assign(S,d)}catch(e){}
+(S.trips||[]).forEach(t=>{if(t&&t.extraRem){t.rem=[t.extraRem,t.rem].map(x=>String(x??"").trim()).filter(Boolean).join(" / ");t.extraRem=""}});
 const drv=()=>S.drivers.find(d=>d.name===S.driver)||{};
 const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem,subjCustom}=S;localStorage.setItem(DRAFT_KEY,JSON.stringify({driver,vehicle,sdate,trips,editingId,draftBackup,debit,debitRem,subjCustom}))}catch(e){}};
@@ -456,8 +457,8 @@ const save=()=>{try{const {driver,vehicle,sdate,trips,editingId,draftBackup,debi
 async function q(p,what){const {data,error}=await p;if(error){console.error(error);toast(`Could not ${what}: ${error.message}`);throw error}return data}
 const drvFromRow=r=>({id:r.id,name:r.name,status:r.status,accHolder:r.acc_holder||"",accNo:r.acc_no||"",ifsc:r.ifsc||"",bank:r.bank_name||"",branch:r.branch||""});
 const drvToRow=d=>({name:d.name,status:d.status||"Active",acc_holder:d.accHolder||null,acc_no:d.accNo||null,ifsc:d.ifsc||null,bank_name:d.bank||null,branch:d.branch||null});
-const tripFromRow=r=>({date:r.trip_date||"",veh:r.vehicle_no||"",from:r.from_place||"",to:r.to_place||"",lr:r.lr_no||"",retFrom:r.ret_from||"",retTo:r.ret_to||"",retLr:r.ret_lr_no||"",retAuto:false,pay:+r.trip_payment||0,extra:+r.extra_amount||0,extraRem:r.extra_remarks||"",adv:+r.advance||0,rem:r.remarks||"",startKm:+r.start_km||0,closeKm:+r.close_km||0,used:+r.used_diesel||0,km:+r.running_km||0});
-const tripToRow=(t,i,sid)=>({settlement_id:sid,seq:i,trip_date:t.date||null,vehicle_no:t.veh||null,from_place:t.from||null,to_place:t.to||null,lr_no:t.lr||null,ret_from:t.retFrom||null,ret_to:t.retTo||null,ret_lr_no:t.retLr||null,trip_payment:t.pay||0,extra_amount:t.extra||0,extra_remarks:t.extraRem||null,advance:t.adv||0,used_diesel:t.used||0,start_km:t.startKm||0,close_km:t.closeKm||0,running_km:t.km||0,remarks:t.rem||null});
+const tripFromRow=r=>({date:r.trip_date||"",veh:r.vehicle_no||"",from:r.from_place||"",to:r.to_place||"",lr:r.lr_no||"",retFrom:r.ret_from||"",retTo:r.ret_to||"",retLr:r.ret_lr_no||"",retAuto:false,pay:+r.trip_payment||0,extra:+r.extra_amount||0,extraRem:"",adv:+r.advance||0,rem:[r.extra_remarks,r.remarks].map(x=>String(x??"").trim()).filter(Boolean).join(" / "),startKm:+r.start_km||0,closeKm:+r.close_km||0,used:+r.used_diesel||0,km:+r.running_km||0});
+const tripToRow=(t,i,sid)=>({settlement_id:sid,seq:i,trip_date:t.date||null,vehicle_no:t.veh||null,from_place:t.from||null,to_place:t.to||null,lr_no:t.lr||null,ret_from:t.retFrom||null,ret_to:t.retTo||null,ret_lr_no:t.retLr||null,trip_payment:t.pay||0,extra_amount:t.extra||0,extra_remarks:null,advance:t.adv||0,used_diesel:t.used||0,start_km:t.startKm||0,close_km:t.closeKm||0,running_km:t.km||0,remarks:t.rem||null});
 const ms=v=>v?new Date(v).getTime():null;
 const histFromRow=r=>({emailHtml:r.email_html||"",emailSentAt:ms(r.email_sent_at),emailError:r.email_error||"",id:r.id,savedAt:ms(r.created_at),status:r.status,driver:r.driver_name,vehicle:r.vehicle_no||"",sdate:r.settlement_date||"",
   trips:(r.ts_trips||[]).sort((a,b)=>a.seq-b.seq).map(tripFromRow),bank:r.bank||{},net:+r.net||0,subject:r.subject||"",revisions:r.revisions||0,
@@ -757,9 +758,9 @@ $("hSearch").oninput=()=>{hPage=1;renderHistory()};
 $("hFilterBtn").onclick=()=>{const f=$("hFilters");f.hidden=!f.hidden;$("hFilterBtn").setAttribute("aria-expanded",String(!f.hidden))};
 $("hExport").onclick=()=>{
   const list=hFiltered();if(!list.length){toast("Nothing to export");return}
-  const cols=["Settlement date","Driver","Vehicle","Trip date","Trip vehicle","From","To","LR No","Return from","Return to","Return LR No","Trip payment","Extra amount","Extra remarks","Advance","Starting km","Closing km","Running km","Used diesel","Remarks","Settlement total","Debit","Final payable","Payment status","Email sent"];
+  const cols=["Settlement date","Driver","Vehicle","Trip date","Trip vehicle","From","To","LR No","Return from","Return to","Return LR No","Trip payment","Extra amount","Advance","Starting km","Closing km","Running km","Used diesel","Remarks","Settlement total","Debit","Final payable","Payment status","Email sent"];
   const cell=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
-  const rows=[cols];for(const {h} of list)for(const t of h.trips)rows.push([h.sdate,h.driver,h.vehicle,t.date,t.veh,t.from,t.to,t.lr,t.retFrom,t.retTo,t.retLr,t.pay,t.extra,t.extraRem,t.adv,t.startKm,t.closeKm,t.km,t.used,t.rem,h.net,h.dieselDebit||0,finalAmt(h),h.status,h.emailSentAt?"Yes":"No"]);
+  const rows=[cols];for(const {h} of list)for(const t of h.trips)rows.push([h.sdate,h.driver,h.vehicle,t.date,t.veh,t.from,t.to,t.lr,t.retFrom,t.retTo,t.retLr,t.pay,t.extra,t.adv,t.startKm,t.closeKm,t.km,t.used,t.rem,h.net,h.dieselDebit||0,finalAmt(h),h.status,h.emailSentAt?"Yes":"No"]);
   const blob=new Blob(["﻿"+rows.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`settlements-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();toast("Exported to CSV – opens in Excel")};
 $("editBank").onclick=()=>{page("drivers");const i=S.drivers.findIndex(d=>d.name===S.driver);if(i>=0)$("dList").querySelector(`[data-edit="${i}"]`)?.click()};
@@ -779,9 +780,9 @@ function renderTrips(full=true){
         ${field(i,"to","To")}${field(i,"lr","LR No")}${field(i,"pay","Trip payment ₹","number")}
         <div class="retlbl">Return trip</div>
         ${field(i,"retFrom","Return from")}${field(i,"retTo","Return to")}${field(i,"retLr","Return LR No")}
-        ${field(i,"extra","Extra amount ₹","number")}${field(i,"extraRem","Extra amount remarks")}${field(i,"adv","Advance ₹","number")}
-        ${field(i,"used","Used diesel (L)","number")}${field(i,"startKm","Starting km","number")}${field(i,"closeKm","Closing km","number")}
-        ${field(i,"km","Running km (auto)","number")}${field(i,"rem","Remarks","text","span2")}
+        ${field(i,"extra","Extra amount ₹","number")}${field(i,"adv","Advance ₹","number")}${field(i,"used","Used diesel (L)","number")}
+        ${field(i,"startKm","Starting km","number")}${field(i,"closeKm","Closing km","number")}${field(i,"km","Running km (auto)","number")}
+        ${field(i,"rem","Remarks","text","span3")}
       </div>
       <div class="calc" id="calc${i}"></div>
     </article>`).join("");
@@ -826,7 +827,7 @@ function renderSum(){
   $("tWords").textContent=inWords(fin);
   $("sumList").innerHTML=S.trips.map(t=>{const c=calc(t);return`
     <div class="sum-item"><div class="d">${fmtDate(t.date)} · ${t.veh}</div><div class="amt">${inr(t.pay+t.extra-t.adv)}</div>
-    <div class="m">${t.from} → ${t.to} · LR ${t.lr||"-"}${t.retFrom||t.retTo?` · Return ${t.retFrom||"-"} → ${t.retTo||"-"} · LR ${t.retLr||"-"}`:""} · ${t.km} km · ${f2(t.used)} L used${t.extraRem?" · Extra: "+t.extraRem:""}</div><div class="m ${c.excess>0?"pos":"negv"}">${f2(c.excess)} L</div></div>`}).join("");
+    <div class="m">${t.from} → ${t.to} · LR ${t.lr||"-"}${t.retFrom||t.retTo?` · Return ${t.retFrom||"-"} → ${t.retTo||"-"} · LR ${t.retLr||"-"}`:""} · ${t.km} km · ${f2(t.used)} L used${t.rem?" · "+esc(t.rem):""}</div><div class="m ${c.excess>0?"pos":"negv"}">${f2(c.excess)} L</div></div>`}).join("");
   $("msg").innerHTML=emailHTML(T);
   if(document.activeElement!==$("subj"))$("subj").value=S.subjCustom||autoSubject();
   $("subjReset").hidden=!S.subjCustom;
@@ -868,7 +869,7 @@ function emailHTML(T){
   const money=v=>has(v)?"₹ "+n(v):"-";
   const tdr=(x,al="left",extra="")=>`<td rowspan="2" style="${B}text-align:${al};vertical-align:middle;white-space:nowrap;${extra}">${x}</td>`;
   const rows=S.trips.map(t=>{const c=calc(t),ok=t.km>0&&t.used>0;
-    return `<tr>${tdr(fmtDate(t.date))}${td(D(t.veh))}${td(D(t.from))}${td(D(t.to))}${tdr(money(t.pay),"right")}${tdr(money(t.extra),"right")}${tdr(money(t.adv),"right")}${tdr(D(t.km),"right")}${tdr(t.used>0?f2(t.used):"-","right")}${tdr(ok?c.mileage.toFixed(1):"-","right")}${tdr(t.km>0?f2(c.allowed):"-","right")}${tdr(ok?f2(c.excess):"-","right",ok&&c.excess>0?"color:#b4322a;font-weight:700":"")}${tdr(D([t.extraRem,t.rem].map(x=>String(x??"").trim()).filter(Boolean).join(" / ")))}</tr>
+    return `<tr>${tdr(fmtDate(t.date))}${td(D(t.veh))}${td(D(t.from))}${td(D(t.to))}${tdr(money(t.pay),"right")}${tdr(money(t.extra),"right")}${tdr(money(t.adv),"right")}${tdr(D(t.km),"right")}${tdr(t.used>0?f2(t.used):"-","right")}${tdr(ok?c.mileage.toFixed(1):"-","right")}${tdr(t.km>0?f2(c.allowed):"-","right")}${tdr(ok?f2(c.excess):"-","right",ok&&c.excess>0?"color:#b4322a;font-weight:700":"")}${tdr(D(t.rem))}</tr>
 <tr>${td(D(t.veh))}${td(D(t.retFrom))}${td(D(t.retTo))}</tr>`}).join("");
   const Y="background:#fff2cc;font-weight:700;";
   return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;color:#18202c">
@@ -890,7 +891,7 @@ ${(d=>[["Account Holder Name",d.accHolder],["Account Number",d.accNo],["IFSC Cod
 }
 function message(T){
   const lines=[`TRIP SETTLEMENT`,`Driver: ${S.driver||"-"}`,`Vehicle: ${S.vehicle||"-"}`,`Date: ${fmtDate(S.sdate)}`,``];
-  S.trips.forEach((t,i)=>{const c=calc(t);lines.push(`${i+1}. ${fmtDate(t.date)} | ${t.veh||"-"} | ${t.from||"-"} → ${t.to||"-"} | LR ${t.lr||"-"}`+(t.retFrom||t.retTo?`\n   Return: ${t.retFrom||"-"} → ${t.retTo||"-"} | LR ${t.retLr||"-"}`:""),`   Pay ${inr(t.pay)} + Extra ${inr(t.extra)} − Adv ${inr(t.adv)}`);if(t.extraRem)lines.push(`   Extra for: ${t.extraRem}`);lines.push(`   ${t.km} km | Used ${f2(t.used)} L | Excess ${f2(c.excess)} L`)});
+  S.trips.forEach((t,i)=>{const c=calc(t);lines.push(`${i+1}. ${fmtDate(t.date)} | ${t.veh||"-"} | ${t.from||"-"} → ${t.to||"-"} | LR ${t.lr||"-"}`+(t.retFrom||t.retTo?`\n   Return: ${t.retFrom||"-"} → ${t.retTo||"-"} | LR ${t.retLr||"-"}`:""),`   Pay ${inr(t.pay)} + Extra ${inr(t.extra)} − Adv ${inr(t.adv)}`);if(t.rem)lines.push(`   Remarks: ${t.rem}`);lines.push(`   ${t.km} km | Used ${f2(t.used)} L | Excess ${f2(c.excess)} L`)});
   lines.push(``,`Trip payment: ${inr(T.pay)}`,`Extra amount: ${inr(T.extra)}`,`Advance: ${inr(T.adv)}`,`Excess diesel: ${f2(T.excess)} L`,`TOTAL AMOUNT: ${inr(T.net)}`,`(${inWords(T.net)})`);
   return lines.join("\n");
 }
